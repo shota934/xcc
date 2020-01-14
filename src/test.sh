@@ -1,0 +1,70 @@
+#! /bin/bash
+try(){
+    expected="$1"
+    input="$2"
+    testcase="$3"
+    ./xcc "$input"
+    gcc -o tmp tmp.s
+    ./tmp
+    actual="$?"
+
+    if [ "$actual" = "$expected" ]; then
+	echo "$input => $actual"
+	echo $testcase
+    else
+	echo "$expected expected, but got $actual"
+	exit 1
+    fi
+}
+
+try 100 test/test_array.c            "passed array."
+try 20  test/test_if.c               "passed if."
+try 40  test/test_if_else.c          "passed if-else."
+try 21  test/test_fun.c              "passed function call."
+try 45  test/test_while.c            "passed while loop."
+try 45  test/test_while_inc.c        "passed while loop by increment."
+try 45  test/test_for.c              "passed for loop."
+try 45  test/test_for_inc.c          "passed for loop by increment."
+try 55  test/test_recursive_sum.c    "passed recursive calling function."
+try 10  test/test_struct.c           "passed structure as parameter when function calls."
+try 10  test/test_pointer.c          "passed reference parameter as parameter when function calls."
+try 200 test/struct_pointer.c        "passed the pointer of structure as parameter when function calls."
+try 244 test/struct_pointer2.c       "passed the pointer of structure as parameter when function calls."
+try 60  test/test_func_decl.c        "passed function declaration."
+try 100 test/test_static_func.c      "passed static function."
+try 200 test/test_extern_func.c      "passed extern function."
+try 70  test/test_comment1.c         "passed comment style1."
+try 90  test/test_comment2.c         "passed comment style2."
+try 110 test/test_comment3.c         "passed comment style3."
+try 170 test/test_hex1.c             "passed hex value case 1."
+try 255 test/test_hex2.c             "passed hex value case 2."
+try 31  test/test_hex3.c             "passed hex value case 3."
+try 30  test/test_function_pointer.c "passed function pointer."
+try 21  test/test_typedef1.c         "passed test typedef1."
+try 20  test/test_typedef2.c         "passed test typedef2."
+try 30  test/test_typedef3.c         "passed test typedef3."
+try 50  test/test_union.c            "passed test union."
+try 201 test/test_define_obj.c       "passed test define_obj."
+try 5   test/test_func_like_macro.c  "passed test func like macro."
+try 100 test/test_macro_if.c         "passed test macro if."
+try 200 test/test_macro_if_else.c    "passed test macro if_else."
+try 110 test/test_macro_if_not.c     "passed test macro if_not."
+try 13  test/test_const1.c            "passed test const1."
+try 40  test/test_const2.c            "passed test const2."
+try 80  test/test_macro_defined.c     "passed test macro defined."
+try 50  test/test_macro_elif.c        "passed test macro elif."
+try 10  test/test_long.c              "passed test long."
+try 1   test/test_and.c               "passed test and."
+try 3   test/test_or.c                "passed test or."
+try 254 test/test_bit_reversal.c      "passed test bit reversal."
+try 1   test/test_logical_not.c       "passed test logical not."
+try 254 test/test_xor.c               "passed test logical xor"
+try 10  test/test_not_macro.c         "passed test_not_macro."
+try 8   test/test_sizeof_int.c        "passed type size of int."
+try 8   test/test_sizeof_long.c       "passed type size of long."
+try 3   test/test_include.c           "passed test include."
+try 20  test/test_typedef_struct1.c   "passed test typedef struct1."
+try 10  test/test_typedef_struct2.c   "passed test typedef struct2."
+try 60  test/test_include_stdio.c     "passed test_include_stdio"
+
+echo "Passed all Test cases."

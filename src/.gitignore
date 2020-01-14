@@ -1,0 +1,10 @@
+*~
+*.o
+tmp*
+xcc
+a.out
+GPATH
+GRTAGS
+GTAGS
+.DS_Store
+
