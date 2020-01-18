@@ -7,8 +7,7 @@
 #include <stdarg.h>
 #include "error.h"
 
-static void print_error(string_t msg,va_list arg);
-
+static void print_error(string_t fmt,va_list arg);
 void error(int line,string_t name,string_t msg,...){
   
   va_list args;
@@ -44,13 +43,13 @@ void error_no_info(string_t msg,...){
   return;
 }
 
-static void print_error(string_t msg,va_list arg){
-
+static void print_error(string_t fmt,va_list arg){
+  
 #ifdef __DEBUG__
   printf("print_error\n");
 #endif
+  
+  vfprintf(stderr, fmt,arg);
 
-  
-  
   return;
 }

@@ -58,6 +58,7 @@
 #define CASE            "case"
 #define CAST            "cast"
 #define DEFAULT         "default"
+#define BREAK           "break"
 #define LOGICAL_AND     "&&"
 #define LOGICAL_OR      "||"
 #define DEFINED         "defined"

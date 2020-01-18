@@ -22,6 +22,8 @@
 static int TAB = 8;
 
 char *regs[] = {"rdi","rsi","rdx","rcx","r4","r9"};
+#define SWITCH_NEXT "next"
+#define SWITCH_TEST "test"
 #define SIZE sizeof(void *)
 #define EMIT_NO_INDENT(ei,...) emitf(ei,0x00,__VA_ARGS__)
 #define EMIT(ei,...)        emitf(ei,__LINE__, "\t" __VA_ARGS__)
@@ -40,6 +42,8 @@ char *regs[] = {"rdi","rsi","rdx","rcx","r4","r9"};
 #define INCREMENT_STACK(ei,s)       ei->stack_pos += s
 #define DECREMENT_STACK(ei,s)       ei->stack_pos -= s
 #define CALC_PASSING_OF_STACK_POS(ei,d) ei->stack_pos % d
+#define GEN_INFO_SET_MAP(ei,m)               ei->map = map
+#define GEN_INFO_GET_MAP(ei)                 ei->map
 
 #define INIT_ENUM_VALUE(ei)  ei->enum_value = 0
 #define SET_ENUM_VALUE(ei,v) ei->enum_value = v
@@ -86,6 +90,13 @@ static list_t *gen_defvar(gen_info_t *ei,env_t *env,list_t *lst);
 static list_t *gen_logical_not(gen_info_t *ei,env_t *env,list_t *lst);
 static list_t *gen_not(gen_info_t *ei,env_t *env,list_t *lst);
 static list_t *gen_sizeof(gen_info_t *ei,env_t *env,list_t *lst);
+static list_t *gen_switch(gen_info_t *ei,env_t *env,list_t *lst);
+static list_t *gen_switch_cases(gen_info_t *ei,env_t *env,list_t *lst);
+static list_t *gen_switch_case(gen_info_t *ei,env_t *env,list_t *lst);
+static list_t *gen_case(gen_info_t *ei,env_t *env,list_t *lst);
+static list_t *gen_default(gen_info_t *ei,env_t *env,list_t *lst);
+static list_t *gen_cases_stmt(gen_info_t *ei,env_t *env,list_t *lst);
+static list_t *gen_break(gen_info_t *ei,env_t *env,list_t *lst);
 static int gen_sizeoftype(gen_info_t *ei,env_t *env,list_t *lst);
 static void gen_arg(gen_info_t *ei,env_t *env,list_t *lst);
 static void gen_struct_alloc(gen_info_t *ei,env_t *env,list_t *lst);
@@ -638,10 +649,13 @@ static list_t *gen_symbol(gen_info_t *ei,env_t *env,list_t *lst){
 	    || (STRCMP(car(lst),MUL))){
     val = gen_bin_op(ei,env,lst);
   } else if((STRCMP(car(lst),LESS))
-	    || (STRCMP(car(lst),GREATER))){
+	    || (STRCMP(car(lst),GREATER))
+	    || (STRCMP(car(lst),LESS_EQAUL))
+	    || (STRCMP(car(lst),GREATER_EQUAL))
+	    || (STRCMP(car(lst),EQUAL))
+	    || (STRCMP(car(lst),NOT_EQUAL))){
     val = gen_bin_cmp_op(ei,env,lst);
-  } else if((STRCMP(car(lst),LESS_EQAUL))
-	    || (STRCMP(car(lst),GREATER_EQUAL))){
+  } else if(STRCMP(car(lst),EQUAL)){
     val = gen_bin_cmp_op(ei,env,lst);
   } else if((STRCMP(car(lst),ARRAY))){
     val = gen_array(ei,env,lst);
@@ -672,6 +686,10 @@ static list_t *gen_symbol(gen_info_t *ei,env_t *env,list_t *lst){
     val = gen_not(ei,env,lst);
   } else if(STRCMP(car(lst),SIZEOF)){
     val = gen_sizeof(ei,env,cdr(lst));
+  } else if(STRCMP(car(lst),SWITCH)){
+    val = gen_switch(ei,env,cdr(lst));
+  } else if(STRCMP(car(lst),BREAK)){
+    val = gen_break(ei,env,lst);
   } else {
     if(IS_ASSIGN_FLAG(ei)){
       val = lst;
@@ -1324,6 +1342,179 @@ static list_t *gen_sizeof(gen_info_t *ei,env_t *env,list_t *lst){
   return make_null();
 }
 
+static list_t *gen_switch(gen_info_t *ei,env_t *env,list_t *lst){
+
+  string_t test;
+  string_t next;
+  map_t *map;
+  list_t *label_lst;
+
+#ifdef __DEBUG__
+  printf("gen_switch\n");
+#endif
+  
+  map = map_create();
+  GEN_INFO_SET_MAP(ei,map);
+  
+  test = make_label();
+  next = make_label();
+  
+  map_put(map,SWITCH_NEXT,next);
+  map_put(map,SWITCH_TEST,test);
+
+  gen_jmp(ei,test);
+  gen_label(ei,test);
+
+  gen_operand(ei,env,lst);
+  push(ei,"rax");
+  pop(ei,"rcx"); 
+
+  label_lst = gen_switch_cases(ei,env,car(cdr(lst)));
+  
+  gen_cases_stmt(ei,env,label_lst);
+  
+  gen_label(ei,next);
+  
+  return make_null();
+}
+
+static list_t *gen_switch_cases(gen_info_t *ei,env_t *env,list_t *lst){
+  
+  list_t *val;
+  map_t *map;
+  string_t next;
+  
+#ifdef __DEBUG__
+  printf("gen_switch_cases\n");
+#endif
+  
+  if(IS_LIST(lst)){
+    val = gen_switch_case(ei,env,car(lst));
+    val = concat(val,gen_switch_cases(ei,env,cdr(lst)));
+  } else {
+    map = GEN_INFO_GET_MAP(ei);
+    next = map_get(map,SWITCH_NEXT);
+    if(!next){
+      error_no_info("Undefied next label for switch statement.");
+      exit(1);
+    }
+    gen_jmp(ei,next);
+    val = make_null();
+  }
+  
+  return val;
+}
+
+static list_t *gen_switch_case(gen_info_t *ei,env_t *env,list_t *lst){
+
+  string_t label;
+  list_t *val;
+
+#ifdef __DEBUG__
+  printf("gen_switch_case\n");
+#endif
+
+  label = car(lst);
+  if(STRCMP(CASE,label)){
+    val = gen_case(ei,env,car(cdr(lst)));
+  } else if(STRCMP(DEFAULT,label)){
+    val = gen_default(ei,env,car(cdr(lst)));
+  } else {
+    val = make_null();
+  }
+  
+  return val;
+}
+
+static list_t *gen_case(gen_info_t *ei,env_t *env,list_t *lst){
+
+  string_t l;
+  list_t *val;
+  map_t *map;
+  
+#ifdef __DEBUG__
+  printf("gen_case\n");
+#endif
+
+  map = GEN_INFO_GET_MAP(ei);
+  val = make_null();
+  gen_operand(ei,env,lst);
+  EMIT(ei,"cmp #eax, #ecx");
+  
+  l = make_label();
+  map_put(map,l,cdr(lst));
+  val = add_symbol(val,l);
+  gen_je(ei,l);
+  
+  return val;
+}
+
+static list_t *gen_default(gen_info_t *ei,env_t *env,list_t *lst){
+
+  string_t l;
+  list_t *val;
+  map_t *map;
+  
+#ifdef __DEBUG__
+  printf("gen_default\n");
+#endif
+
+  map = GEN_INFO_GET_MAP(ei);
+  val = make_null();
+
+  l = make_label();
+  map_put(map,l,lst);
+  val = add_symbol(val,l);
+  gen_jmp(ei,l);
+  
+  return val;
+}
+
+static list_t *gen_cases_stmt(gen_info_t *ei,env_t *env,list_t *lst){
+  
+  list_t *p;
+  list_t *case_stmts;
+  map_t *map;
+  string_t l;
+  string_t label_type;
+  
+
+#ifdef __DEBUG__
+  pritnf("gen_case_stmt\n");
+#endif
+  
+  map = GEN_INFO_GET_MAP(ei);
+  for(p = lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
+    l = car(p);
+    case_stmts = map_get(map,l);
+    if(!case_stmts){
+      error_no_info("Unknown label : [%s]\n",l);
+      exit(1);
+    }
+    gen_label(ei,l);
+    gen_body(ei,env,case_stmts);
+  }
+  
+  return make_null();
+}
+
+static list_t *gen_break(gen_info_t *ei,env_t *env,list_t *lst){
+
+  map_t *map;
+  string_t next;
+  
+#ifdef __DEBUG__
+  printf("gen_break\n");
+#endif
+
+  map = GEN_INFO_GET_MAP(ei);
+  next = map_get(map,SWITCH_NEXT);
+  
+  gen_jmp(ei,next);
+
+  return make_null();
+}
+
 static int gen_sizeoftype(gen_info_t *ei,env_t *env,list_t *lst){
 
   list_t *type_lst;
@@ -1660,7 +1851,8 @@ static void gen_label(gen_info_t *ei,char *label){
 #ifdef __DEBUG__
   printf("gen_label\n");
 #endif
-  EMIT(ei,"%s:",label);
+
+  EMIT_NO_INDENT(ei,"%s:",label);
 
   return;
 }
@@ -1731,8 +1923,19 @@ static char *gen_cmp_inst(list_t *lst){
     inst = "setl";
   } else if(STRCMP(car(lst),LESS_EQAUL)){
     inst = "setle";
+  } else if(STRCMP(car(lst),GREATER)){
+    inst = "setg";
+  } else if(STRCMP(car(lst),GREATER_EQUAL)){
+    inst = "setge";
+  } else if(STRCMP(car(lst),EQUAL)){
+    inst = "sete";
+  } else if(STRCMP(car(lst),NOT_EQUAL)){
+    inst = "setne";
+  } else {
+    error_no_info("Undefined code for [%s]",car(lst));
+    exit(1);
   }
-
+  
   return inst;
 }
 

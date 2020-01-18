@@ -45,6 +45,7 @@ token_t keywords[] = {
   {TOKEN_IF,"if"},
   {TOKEN_ELSE,"else"},
   {TOKEN_EQUAL,"=="},
+  {TOKEN_NOT_EQUAL,"!="},
   {TOKEN_LESS,"<"},
   {TOKEN_GREATER,">"},
   {TOKEN_LESS_EQUAL,"<="},
@@ -366,10 +367,15 @@ static token_t *scan_operator(lexer_t *lex,char c){
   token_type_t type;
   int len;
   char ch;
+  char tmp;
 
   ch = c;
   if(is_symbol(ch)){
+    tmp = ch;
     ch = LEXER_GET_NEXT_CHAR(lex);
+    if(('!' == tmp) && ('=' == ch)){
+      ch = LEXER_GET_NEXT_CHAR(lex);
+    }
   } else {
     ch = LEXER_GET_NEXT_CHAR(lex);
     while((!isalpha(ch)) && (!isdigit(ch)) && (!is_skip(ch))

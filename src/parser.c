@@ -79,7 +79,8 @@
 			(TOKEN_GET_TYPE(t) == TOKEN_GREATER) || \
 			(TOKEN_GET_TYPE(t) == TOKEN_LESS_EQUAL) || \
 			(TOKEN_GET_TYPE(t) == TOKEN_GREATER_EQUAL) || \
-			(TOKEN_GET_TYPE(t) == TOKEN_EQUAL))
+			(TOKEN_GET_TYPE(t) == TOKEN_EQUAL)         || \
+                        (TOKEN_GET_TYPE(t) == TOKEN_NOT_EQUAL))
 
 #define IS_CREMENT_OPERATOR(t) ((TOKEN_GET_TYPE(t) == TOKEN_INCREMENT_BY_ONE) || \
 				(TOKEN_GET_TYPE(t) == TOKEN_DECREMENT_BY_ONE))
@@ -89,9 +90,6 @@
 #define IS_STRUCT(t)      (TOKEN_GET_TYPE(t) == TOKEN_STRUCT)
 #define IS_TYPEDEF(t)     (TOKEN_GET_TYPE(t) == TOKEN_TYPEDEF)
 #define IS_DOT(t)         (TOKEN_GET_TYPE(t) == TOKEN_DOT)
-#define IS_LESS(t)        (TOKEN_GET_TYPE(t) == TOKEN_LESS)
-#define IS_GREATER(t)     (TOKEN_GET_TYPE(t) == TOKEN_GREATER)
-#define IS_INCLUDE(t)     (TOKEN_GET_TYPE(t) == TOKEN_INCLUDE)
 #define IS_BREAK(t)       (TOKEN_GET_TYPE(t) == TOKEN_BREAK) 
 #define IS_COLON(t)       (TOKEN_GET_TYPE(t) == TOKEN_COLON)
 #define IS_ARROW_OP(t)    (TOKEN_GET_TYPE(t) == TOKEN_ARROW_OP)
@@ -132,6 +130,7 @@ static list_t *parser_parse_defvars(parser_t *parser);
 static list_t *parser_constant_text(parser_t *parser);
 static list_t *parser_parse_defined(parser_t *parser);
 
+static list_t *parser_parse_stmts(parser_t *parser);
 static list_t *parser_parse_stmt(parser_t *parser);
 static list_t *parser_parse_array(parser_t *parser);
 static list_t *parser_parse_stmt_expr(parser_t *parser);
@@ -749,6 +748,22 @@ static int is_type_qualifier(token_t *t){
   return flag;
 }
 
+static list_t *parser_parse_stmts(parser_t *parser){
+
+  list_t *new_lst;
+  
+#ifdef __DEBUG__
+  printf("parser_parse_stmts\n");
+#endif
+  
+  new_lst = parser_parse_stmt(parser);
+  if(IS_NOT_NULL_LIST(new_lst)){
+    new_lst = concat(new_lst,parser_parse_stmts(parser));
+  }
+  
+  return new_lst;
+}
+
 static list_t *parser_parse_stmt(parser_t *parser){
 
   list_t *new_lst;
@@ -777,6 +792,9 @@ static list_t *parser_parse_stmt(parser_t *parser){
   } else if(IS_FOR(t)){
     new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
     new_lst = add_list(make_null(),concat(new_lst,parser_parse_for(parser)));
+  } else if(IS_BREAK(t)){
+    new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
+    new_lst = add_list(make_null(),new_lst);
   } else if(IS_END_T(t)){
     new_lst = make_null();
   } else {
@@ -787,11 +805,7 @@ static list_t *parser_parse_stmt(parser_t *parser){
   if((!IS_IF(t)) && (!IS_WHILE(t)) && (!IS_FOR(t))){
     t = lexer_get_token(PARSER_GET_LEX(parser));
     if(!IS_SEMI_COLON(t)){
-      if(IS_RBRACE(t)){
-	lexer_put_token(PARSER_GET_LEX(parser),t);
-      }
-    } else {
-    
+      lexer_put_token(PARSER_GET_LEX(parser),t);
     }
   }
   
@@ -1245,34 +1259,42 @@ static list_t *parser_parse_while(parser_t *parser){
 static list_t *parser_parse_switch(parser_t *parser){
 
   list_t *new_lst;
+  list_t *sub_lst;
   token_t *t;
 
+#ifdef __DEBUG__
+  printf("parser_parse_switch\n");
+#endif
+  
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_LPAREN(t)){
-    
+    error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n","(",TOKEN_GET_STR(t));
   }
   
-  new_lst = add_list(make_null(),parser_parse_stmt_expr(parser));
+  new_lst = parser_parse_cond_expr(parser);
   
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_RPAREN(t)){
-    
+    error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n",")",TOKEN_GET_STR(t));
+    exit(1);
   }
-  
+
   new_lst = concat(new_lst,parser_parse_stmt_expr(parser));
 
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_LBRACE(t)){
-    
+    error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n","{",TOKEN_GET_STR(t));
+    exit(1);
   }
-  
+
   new_lst = concat(new_lst,add_list(make_null(),parser_parse_switch_cases(parser)));
   
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_RBRACE(t)){
-    
+    error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n","}",TOKEN_GET_STR(t));
+    exit(1);
   }
-
+  
   return new_lst;
 }
 
@@ -1281,6 +1303,9 @@ static list_t *parser_parse_switch_cases(parser_t *parser){
   list_t *new_lst;
   token_t *t;
   
+#ifdef __DEBUG__
+  printf("parser_parse_switch_cases\n");
+#endif
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if((IS_CASE(t)) || (IS_DEFAULT(t))){
     new_lst = add_symbol(make_null(),TOKEN_GET_STR(t));
@@ -1290,32 +1315,27 @@ static list_t *parser_parse_switch_cases(parser_t *parser){
     new_lst = make_null();
     lexer_put_token(PARSER_GET_LEX(parser),t);
   }
-
+  
   return new_lst;
 }
 
 static list_t *parser_parse_switch_case(parser_t *parser){
   
   list_t *new_lst;
+  list_t *stmt_lst;
   token_t *t;
 
+  #ifdef __DEBUG__
+  printf("parser_parse_switch_carse\n");
+  #endif
   new_lst = parser_parse_cexpr(parser);
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_COLON(t)){
     
   }
-
-  new_lst = concat(new_lst,parser_parse_stmt_expr(parser));
   
-  t = lexer_get_token(PARSER_GET_LEX(parser));
-  if(IS_BREAK(t)){
-    new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
-    t = lexer_get_token(PARSER_GET_LEX(parser));
-    if(!IS_SEMI_COLON(t)){
-      
-    }
-  }
-  
+  stmt_lst = add_list(make_null(),parser_parse_stmts(parser));
+  new_lst = concat(new_lst,stmt_lst);
   new_lst = add_list(make_null(),new_lst);
   
   return new_lst;

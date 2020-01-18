@@ -37,12 +37,12 @@ enum token_type_t {
   TOKEN_BOOL_AND,
   TOKEN_BOOL_OR,
   TOKEN_EQUAL,
+  TOKEN_NOT_EQUAL,
   TOKEN_LESS,
   TOKEN_GREATER,
   TOKEN_LESS_EQUAL,
   TOKEN_GREATER_EQUAL,
   TOKEN_NOT,
-  //  TOKEN_CLON,
   TOKEN_DOT,
   TOKEN_DOUBLE_QUOTE,
   TOKEN_WHILE,
@@ -126,7 +126,7 @@ struct lexer_t{
 #define TOKEN_GET_TYPE(t) t->type
 #define TOKEN_GET_STR(t) t->str
 #define TOKEN_GET_LINE_NO(t) t->line_no
-#define TOKEN_GET_NAME(to)    t->name
+#define TOKEN_GET_NAME(t)    t->name
 
 token_t *create_token(token_type_t type,char *str,int line_no,string_t name);
 
