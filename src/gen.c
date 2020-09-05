@@ -175,6 +175,7 @@ static void gen_builtin_function(list_t *lst);
 static void gen_builtin_va_start(list_t *lst);
 static list_t *calc_type(list_t *lst);
 static string_t emit_no_name_label(gen_info_t *ei);
+static int get_size(env_t *env,list_t *lst);
 
 gen_info_t *create_gen_info(){
   
@@ -218,22 +219,22 @@ list_t *gen(gen_info_t *ei,env_t *env,list_t *lst,bool_t recursive_flag){
   if(IS_NOT_NULL_LIST(lst)){
     if(IS_INTEGER(((list_t *)car(lst)))){
       if(is_typdef(car(lst))){
-	gen_typedef(ei,env,cdr(car(lst)));
+		gen_typedef(ei,env,cdr(car(lst)));
       }
     } else {
       char *symbol = (char *)car(car(lst));
       if(STRCMP(symbol,STRUCT_DEF)){
-	val = gen_struct(ei,env,cdr(car(lst)));
+		val = gen_struct(ei,env,cdr(car(lst)));
       } else if(STRCMP(symbol,UNION_DEF)){
-	gen_union(ei,env,cdr(car(lst)));
+		gen_union(ei,env,cdr(car(lst)));
       } else if(STRCMP(symbol,ENUM)){
-	gen_enum(ei,env,lst);
+		gen_enum(ei,env,lst);
       } else if(STRCMP(symbol,FUNC_DEF)){
-	list_t *function = cdr(car(lst));
-	env_t *new_env = extend_env(env);
-	list_t *body;
-	list_t *name;
-	list_t *func;
+		list_t *function = cdr(car(lst));
+		env_t *new_env = extend_env(env);
+		list_t *body;
+		list_t *name;
+		list_t *func;
       
 	if(is_static(function) || is_extern(function)){
 	  function = cdr(function);
@@ -519,9 +520,9 @@ static void gen_func_parms(gen_info_t *ei,env_t *env,list_t *lst){
     SYMBOL_SET_SIZE(sym,size);
     if(is_structtype(tail(type_lst))){
       if(is_pointer(type_lst)){
-	gen_struct_ref_param(ei,env,q,i,sym);
+		gen_struct_ref_param(ei,env,q,i,sym);
       } else {
-	gen_struct_alloc_param(ei,env,q,i);
+		gen_struct_alloc_param(ei,env,q,i);
       }
     } else {
       name = cdr(q);
@@ -828,7 +829,7 @@ static list_t *gen_increment_assign(gen_info_t *ei,env_t *env,list_t *lst){
     EMIT(ei,"%s #rcx, #rax",op);
   }
   
-  sym = sym = lookup_obj(env,car(cdr(lst)));
+  sym = lookup_obj(env,car(cdr(lst)));
   
   offset = SYMBOL_GET_OFFSET(sym);
   EMIT(ei,"mov #rax, %d(#rbp)",offset);
@@ -1263,18 +1264,18 @@ static list_t *gen_defvar(gen_info_t *ei,env_t *env,list_t *lst){
       size = get_size_of_type(type_lst);
       type = gen_type(type_lst);
       if(TYPE_UNDEFINE == type){
-	type_lst = lookup_primitive_symbol(env,car(type_lst));
-	kind = select_type(type_lst);
-	type = gen_type(tail(type_lst));
+		type_lst = lookup_primitive_symbol(env,car(type_lst));
+		kind = select_type(type_lst);
+		type = gen_type(tail(type_lst));
       } else {
-	kind = select_type(type_lst);
+		kind = select_type(type_lst);
       }
       
       if(TYPE_STRUCT == type){
-	list_t *l = add_symbol(make_null(),car(name));
-	l = add_list(l,add_symbol(make_null(),car(type_lst)));
-	gen_struct_alloc(ei,env,l);
-	return make_null();;
+		list_t *l = add_symbol(make_null(),car(name));
+		l = add_list(l,add_symbol(make_null(),car(type_lst)));
+		gen_struct_alloc(ei,env,l);
+		return make_null();;
       }
       
       ei->off_set = CALC_OFF(ei->off_set_index);
@@ -1480,7 +1481,7 @@ static list_t *gen_cases_stmt(gen_info_t *ei,env_t *env,list_t *lst){
   
 
 #ifdef __DEBUG__
-  pritnf("gen_case_stmt\n");
+  printf("gen_case_stmt\n");
 #endif
   
   map = GEN_INFO_GET_MAP(ei);
@@ -1534,7 +1535,14 @@ static int gen_sizeoftype(gen_info_t *ei,env_t *env,list_t *lst){
   if(TYPE_UNDEFINE != type){
     size = get_size_of_type(type_lst);
   } else {
-    error_no_info("Undefined code");
+	symbol_t *sym;
+	sym = lookup_obj(env,car(type_lst));
+	if(sym){
+	  size = SYMBOL_GET_SIZE(sym);
+	} else {
+	  error_no_info("Undefined code");
+	  exit(1);
+	}
   }
   
   return size;
@@ -1875,8 +1883,8 @@ static void gen_load_convert(gen_info_t *ei,env_t *env,list_t *lst){
   if(!sym){
     return;
   }
-  
-  type = SYMBOL_GET_VAR_TYPE(sym);
+
+  type = SYMBOL_GET_TYPE(sym);
   if((type == TYPE_FLOAT)
      && (LIST_GET_TYPE(cdr(lst)) == DECIMAL)){
     EMIT(ei,"cvtpd2ps #xmm0, #xmm0");
@@ -2410,6 +2418,7 @@ static void gen_typedef(gen_info_t *ei,env_t *env,list_t *lst){
   SYMBOL_SET_KIND(sym,KIND_TYPE);
   type_lst = gen_type_of_typedef(ei,env,lst);
   SYMBOL_SET_TYPE_LST(sym,type_lst);
+  SYMBOL_SET_SIZE(sym,get_size(env,car(lst)));
   insert_obj(env,name,sym);
 
   return;
@@ -2635,7 +2644,6 @@ static list_t *lookup_primitive_symbol(env_t *env,string_t name){
   
   symbol = lookup_obj(env,name);
   if(!symbol){
-    printf("%d : Unknown object : [%s]\n",__LINE__,name);
     exit(1);
   }
   
@@ -2648,9 +2656,9 @@ static list_t *lookup_primitive_symbol(env_t *env,string_t name){
       list_t *lst = SYMBOL_GET_TYPE_LST(symbol);
       type_t type = gen_type(tail(lst));
       if(TYPE_UNDEFINE == type){
-	return lookup_primitive_symbol(env,car(lst));
+		return lookup_primitive_symbol(env,car(lst));
       } else {
-	return lst;
+		return lst;
       }
     }
   }
@@ -2728,6 +2736,7 @@ static string_t emit_no_name_label(gen_info_t *ei){
   return name;
 }
 
+
 static int gen_regsave(gen_info_t *ei){
 
   #ifdef __DEBUG__
@@ -2772,4 +2781,47 @@ static void gen_builtin_va_start(list_t *lst){
   return;
 }
 
+static int get_size(env_t *env,list_t *lst){
+
+  compound_def_t *compound_def;
+  type_t type;
+  symbol_t *sym;
+  
+#ifdef __DEBUG__
+  printf("get_size\n");
+#endif
+  
+  if(is_pointer(lst)){
+	return SIZE;
+  }
+  
+  if(STRCMP(STRUCT_DEF,car(lst))){
+	if(STRCMP(NO_NAME,car(cdr(lst)))){
+	  return 0;
+	}
+	
+	compound_def = lookup_obj(env,car(cdr(lst)));
+	if(!compound_def){
+	  exit(1);
+	}
+	return COMPOUND_TYPE_GET_SIZE(compound_def);
+  }
+  
+  type = gen_type(lst);
+  if(type != TYPE_UNDEFINE){
+	return get_size_of_type(lst);
+  }
+  
+  compound_def = lookup_obj(env,car(lst));
+  if(compound_def){
+	return COMPOUND_TYPE_GET_SIZE(compound_def);
+  }
+  
+  sym = lookup_obj(env,car(lst));
+  if(sym){
+	return SYMBOL_GET_SIZE(sym);
+  }
+  
+  exit(1);
+}
 

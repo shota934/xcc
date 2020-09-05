@@ -104,9 +104,9 @@ list_t *lookup(env_t *env,list_t *var){
     while(IS_NOT_NULL_LIST(elst)){
       list_t *name = car(elst);
       if(STRCMP(car(name),car(var))){
-	return cdr(car(elst));
+		return cdr(car(elst));
       } else {
-	elst = cdr(elst);
+		elst = cdr(elst);
       }
     }
 
@@ -132,9 +132,9 @@ void *lookup_obj(env_t *env,string_t name){
     while(IS_NOT_NULL_LIST(elst)){
       list_t *n = car(elst);
       if(STRCMP(car(n),name)){
-	return car(cdr(car(elst)));
+		return car(cdr(car(elst)));
       } else {
-	elst = cdr(elst);
+		elst = cdr(elst);
       }
     }
 

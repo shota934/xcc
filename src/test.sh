@@ -73,5 +73,6 @@ try 1  test/test_greater_than.c       "passed test greater."
 try 10 test/test_switch1.c            "passed test switch 1."
 try 20 test/test_switch2.c            "passed test switch 2."
 try 30 test/test_switch3.c            "passed test switch 3."
+try 8  test/test_sizeof.c             "passed test sizeof  ."
 
 echo "Passed all Test cases."

@@ -1320,6 +1320,8 @@ static list_t *eval(list_t *expr,map_t *env){
   case INTEGER:
     ret = eval_number(expr,env);
     break;
+  case NULL_LIST:
+	break;
   }
  
   return ret;

@@ -197,7 +197,7 @@ type_t gen_type(list_t *lst){
   
   type_t type;
   
-  if(STRCMP(INT,CAR(lst))){
+  if(STRCMP(INT,car(lst))){
     type = TYPE_INT;
   } else if(STRCMP(CHAR,car(lst))){
     type = TYPE_CHAR;

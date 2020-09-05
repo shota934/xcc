@@ -10,7 +10,7 @@
 #define SYMBOL_SET_VAR_TYPE(s,t) s->var_type = t
 #define SYMBOL_SET_TYPE(s,t) s->type = t
 #define SYMBOL_SET_OFFSET(s,o) s->offset = o
-#define SYMBOL_SET_SIZE(s,si)  s->size = size
+#define SYMBOL_SET_SIZE(s,si)  s->size = si
 #define SYMBOL_SET_KIND(s,k)  s->kind = k
 #define SYMBOL_SET_TYPE_LST(s,l) s->type_lst = l
 
