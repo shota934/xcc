@@ -291,3 +291,11 @@ bool_t is_var_len_args(list_t *lst){
   
   return flag;
 }
+
+list_t *get_def_type_lst(list_t *lst){
+  if(is_pointer(lst)){
+	return cdr(lst);
+  } else {
+	return lst;
+  }
+}

@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "error.h"
+#include "dump.h"
 
 #define __LINUX__
 //#define __DEBUG__
@@ -47,5 +48,10 @@
 #define MEM_SET(s,l)     memset(s,INIT_VALUE,l)
 #define MEM_CPY(d,s,l)   memcpy(d,s,l)
 
+#ifdef __DEBUG__
+#define DUMP_AST(a) dump_ast(a)
+#else
+#define DUMP_AST(a)
+#endif
 
 #endif

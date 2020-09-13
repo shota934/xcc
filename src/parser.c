@@ -9,6 +9,9 @@
 #include "mem.h"
 #include "typecheck.h"
 #include "error.h"
+//----
+#include "dump.h"
+//----
 
 #define ARRAY         "[]"
 #define FUNC_CALL     "func-call"

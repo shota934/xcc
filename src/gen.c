@@ -62,6 +62,7 @@ static int  gen_info_get_offset(gen_info_t *ei);
 
 static list_t *gen_struct(gen_info_t *ei,env_t *env,list_t *lst);
 static void gen_union(gen_info_t *ei,env_t *env,list_t *lst);
+static void gen_pointer(gen_info_t *ei,env_t *env,list_t *lst);
 static list_t *gen_members_of_struct(gen_info_t *ei,env_t *env,list_t *lst);
 static list_t *gen_member_of_struct(gen_info_t *ei,env_t *env,list_t *lst);
 static void gen_function(gen_info_t *ei,env_t *env,list_t *function);
@@ -208,9 +209,9 @@ void init_gen_info(gen_info_t *ei){
 list_t *gen(gen_info_t *ei,env_t *env,list_t *lst,bool_t recursive_flag){
   
   list_t *val;
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen\n");
-  #endif
+#endif
   
   init_gen_info(ei);
   SET_STACK_POS(ei,8);
@@ -236,33 +237,33 @@ list_t *gen(gen_info_t *ei,env_t *env,list_t *lst,bool_t recursive_flag){
 		list_t *name;
 		list_t *func;
       
-	if(is_static(function) || is_extern(function)){
-	  function = cdr(function);
-	  body = cdr(cdr(cdr(function)));
-	} else {
-	  body = cdr(cdr(cdr(function)));
-	}
+		if(is_static(function) || is_extern(function)){
+		  function = cdr(function);
+		  body = cdr(cdr(cdr(function)));
+		} else {
+		  body = cdr(cdr(cdr(function)));
+		}
       
-	if(IS_LIST(cdr(function))){
-	  name = cdr(cdr(function));
-	  func = cdr(function);
-	} else {
-	  name = cdr(function);
-	  func = function;
-	}
-      
-	if(IS_NULL_LIST(lookup(env,name))){
-	  gen_func_decl(ei,env,func);
-	}
+		if(IS_LIST(cdr(function))){
+		  name = cdr(cdr(function));
+		  func = cdr(function);
+		} else {
+		  name = cdr(function);
+		  func = function;
+		}
+		
+		if(IS_NULL_LIST(lookup(env,name))){
+		  gen_func_decl(ei,env,func);
+		}
 	
-	gen_function(ei,new_env,function);
-	gen_body(ei,new_env,car(body));
-	gen_ret(ei);
-      } else if(STRCMP(symbol,FUNC_DECL)){
-	gen_func_decl(ei,env,cdr(car(lst)));
+		gen_function(ei,new_env,function);
+		gen_body(ei,new_env,car(body));
+		gen_ret(ei);
+	  } else if(STRCMP(symbol,FUNC_DECL)){
+		gen_func_decl(ei,env,cdr(car(lst)));
       } else {
-	printf("Undefined behavior\n");
-	exit(1);
+		printf("Undefined behavior\n");
+		exit(1);
       }
     }
     
@@ -324,7 +325,7 @@ static list_t *gen_struct(gen_info_t *ei,env_t *env,list_t *lst){
   compound_def = create_compound_type_def();
   members = gen_members_of_struct(ei,env,body);
   size = calc_size_of_struct(members);
-  
+
   COMPOUND_TYPE_SET_TYPE(compound_def,STRUCT_COMPOUND_TYPE);
   COMPOUND_TYPE_SET_MEMBERS(compound_def,members);
   COMPOUND_TYPE_SET_SIZE(compound_def,size);
@@ -356,10 +357,39 @@ static void gen_union(gen_info_t *ei,env_t *env,list_t *lst){
   COMPOUND_TYPE_SET_TYPE(compound_def,UNION_COMPOUND_TYPE);
   COMPOUND_TYPE_SET_MEMBERS(compound_def,members);
   COMPOUND_TYPE_SET_SIZE(compound_def,size);
-
+  
   insert_obj(env,car(lst),compound_def);
   
   return;
+}
+
+static void gen_pointer(gen_info_t *ei,env_t *env,list_t *lst){
+  
+  symbol_t *sym;
+  type_t type;
+  int size;
+  
+#ifdef __DEBUG__
+  printf("gen_pointer\n");
+#endif
+
+  ei->off_set -= SIZE;
+  ei->off_set_index++;
+  
+  DUMP_AST(lst);
+  sym = create_symbol();
+  SYMBOL_SET_VAR_TYPE(sym,LOCAL_VARIABLE);
+  SYMBOL_SET_SIZE(sym,SIZE);
+  SYMBOL_SET_TYPE(sym,type);
+  SYMBOL_SET_TYPE_LST(sym,car(lst));
+  SYMBOL_SET_OFFSET(sym,ei->off_set);
+  type = gen_type(SYMBOL_GET_TYPE_LST(sym));
+  SYMBOL_SET_TYPE(sym,type);
+  SYMBOL_SET_KIND(sym,select_type(SYMBOL_GET_TYPE_LST(sym)));
+  insert_obj(env,car(cdr(lst)),sym);
+  
+  return;
+  
 }
 
 static list_t *gen_members_of_struct(gen_info_t *ei,env_t *env,list_t *lst){
@@ -626,6 +656,7 @@ static list_t *gen_symbol(gen_info_t *ei,env_t *env,list_t *lst){
   
   list_t *val;
   
+  DUMP_AST(lst);
   val = make_null();
   if(STRCMP(car(lst),RETURN)){
     gen_return(ei,env,cdr(lst));
@@ -706,9 +737,9 @@ static void gen_assign(gen_info_t *ei,env_t *env,list_t *lst){
 
   list_t *var;
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_assign\n");
-  #endif
+#endif
 
   gen_body(ei,env,cdr(cdr(lst)));
   if(IS_LIST(cdr(lst))){
@@ -843,7 +874,6 @@ static void gen_return(gen_info_t *ei,env_t *env,list_t *lst){
   
   gen_body(ei,env,lst);
   
-  EMIT(ei,"cltq");
   EMIT(ei,"leave");
   EMIT(ei,"ret");
   
@@ -905,7 +935,7 @@ static void gen_func_call(gen_info_t *ei,env_t *env,list_t *lst){
       break;
     }
   } else {
-    #ifdef __LINUX__
+#ifdef __LINUX__
     EMIT(ei,"call %s",name);
 #else 
     EMIT(ei,"call _%s",name);
@@ -1119,9 +1149,9 @@ static list_t *gen_bit_shift_op(gen_info_t *ei,env_t *env,list_t *lst){
 
   string_t op;
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_bit_shift_op\n");
-  #endif
+#endif
 
   if(STRCMP((string_t)car(lst),BIT_LEFT_SHIFT)){
     op = "shl";
@@ -1192,9 +1222,9 @@ static int get_size_of_param(env_t *env,list_t *lst){
 static int get_size_of_type(list_t *lst){
   
   int size = 0;
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("get_size_of_type\n");
-  #endif
+#endif
   
   if(STRCMP(INT,car(lst))){
     size = SIZE;
@@ -1226,12 +1256,22 @@ static list_t *gen_defvar(gen_info_t *ei,env_t *env,list_t *lst){
   int size = 0;
   list_t * arr_info;
   int len;
+
+#ifdef __DEBUG__
+  printf("gen_defvar\n");
+#endif
   
   name = make_null();
   if(IS_SYMBOL(lst)){
     if(STRCMP(CONST,car(lst))){
       lst = cdr(lst);
     }
+  }
+
+  DUMP_AST(car(lst));
+  if(is_pointer(car(lst))){
+	gen_pointer(ei,env,lst);
+	return make_null();
   }
   
   if(STRCMP(car(tail(car(lst))),STRUCT_ALLOC)){
@@ -1338,6 +1378,9 @@ static list_t *gen_sizeof(gen_info_t *ei,env_t *env,list_t *lst){
     exit(1);
   }
 
+#ifdef __DEBUG__
+  printf("size : %d\n",size);
+#endif
   EMIT(ei,"mov $%d, #rax",size);
   
   return make_null();
@@ -1521,17 +1564,31 @@ static int gen_sizeoftype(gen_info_t *ei,env_t *env,list_t *lst){
   list_t *type_lst;
   type_t type;
   int size;
+  compound_def_t *compound_def;
   
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_sizeoftype\n");
-  #endif
+#endif
   
   type_lst = tail(lst);
-  type = gen_type(type_lst);
+  if(is_structtype(type_lst)){
+	type_lst = get_at(lst,length_of_list(lst) - 2);
+	compound_def_t *compound_def;
+	compound_def = lookup_obj(env,car(type_lst));
+	if(compound_def){
+	  size = COMPOUND_TYPE_GET_SIZE(compound_def);
+	} else {
+	  error_no_info("Undefined code");
+	  exit(1);
+	}
+	return size;
+  }
+  
   if(is_pointer(type_lst)){
     return size;
   }
 
+  type = gen_type(type_lst);
   if(TYPE_UNDEFINE != type){
     size = get_size_of_type(type_lst);
   } else {
@@ -1552,7 +1609,10 @@ static void gen_arg(gen_info_t *ei,env_t *env,list_t *lst){
 
   list_t *new_lst;
   list_t *name;
-
+#ifdef __DEBUG__
+  printf("gen_arg\n");
+#endif
+  
   name = cdr(lst);
   ei->off_set = CALC_OFF(ei->off_set_index);
   ei->off_set_index++;
@@ -1576,13 +1636,17 @@ static void gen_struct_alloc(gen_info_t *ei,env_t *env,list_t *lst){
   list_t *struct_name;
   int size;
 
-  struct_name = car(lst);
+#ifdef __DEBUG__
+  printf("gen_struct_alloc\n");
+#endif
+  
+  DUMP_AST(lst);
+  struct_name = get_at(car(lst),length_of_list(car(lst)) - 2);
   name = cdr(lst);
   compound_def = lookup_obj(env,car(struct_name));
   size = COMPOUND_TYPE_GET_SIZE(compound_def);
   ei->off_set -= size;
   ei->off_set_index += (size / SIZE);
-  
   symbol = create_symbol();
   SYMBOL_SET_VAR_TYPE(symbol,LOCAL_VARIABLE);
   SYMBOL_SET_TYPE(symbol,TYPE_STRUCT);
@@ -1590,7 +1654,6 @@ static void gen_struct_alloc(gen_info_t *ei,env_t *env,list_t *lst){
   SYMBOL_SET_SIZE(symbol,size);
   SYMBOL_SET_KIND(symbol,KIND_VARIABLE);
   SYMBOL_SET_TYPE_LST(symbol,struct_name);
-  
   insert_obj(env,car(name),symbol);
   
   return;
@@ -1598,9 +1661,9 @@ static void gen_struct_alloc(gen_info_t *ei,env_t *env,list_t *lst){
 
 static void gen_union_alloc(gen_info_t *ei,env_t *env,list_t *lst){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_union_alloc\n");
-  #endif
+#endif
 
   symbol_t *symbol;
   list_t *body;
@@ -1711,9 +1774,9 @@ static void gen_if(gen_info_t *ei,env_t *env,list_t *lst){
 
 static list_t *gen_integer(gen_info_t *ei,list_t *lst){
   
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_integer\n");
-  #endif
+#endif
   
   EMIT(ei,"mov $%u, #rax",*(int *)car(lst));
 
@@ -1724,9 +1787,9 @@ static void gen_float(gen_info_t *ei,list_t *lst){
 
   char *l;
   
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_float\n");
-  #endif
+#endif
   
   l = make_label();
   EMIT(ei,".data");
@@ -1740,9 +1803,9 @@ static void gen_float(gen_info_t *ei,list_t *lst){
 
 static void gen_cmp(gen_info_t *ei){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_cmp\n");
-  #endif
+#endif
   
   EMIT(ei,"test #rax, #rax");
 
@@ -1754,9 +1817,9 @@ static void gen_arg_regs(gen_info_t *ei,list_t *ints,list_t *floats){
   list_t *p;
   int i;
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_arg_regs\n");
-  #endif
+#endif
   
   for(p = ints,i = 0; IS_NOT_NULL_LIST(p); i++,p = cdr(p)){
     push(ei,regs[i]);
@@ -2123,12 +2186,16 @@ static void gen_load(gen_info_t *ei,char *base,env_t *env,list_t *lst,symbol_t *
 
   int off;
   type_t type;
-  
+
+#ifdef __DEBUG__
+  printf("gen_load\n");
+#endif
   off = SYMBOL_GET_OFFSET(symbol);
   type = SYMBOL_GET_TYPE(symbol);
    
   char *inst = get_load_inst(ei,env,lst,symbol);
   EMIT(ei,"%s %d(#%s), #rax", inst, off, base);
+  DUMP_AST(lst);
   if(is_deref(cdr(lst))){
     EMIT(ei,"mov (#rax),#rax");
   }
@@ -2137,6 +2204,10 @@ static void gen_load(gen_info_t *ei,char *base,env_t *env,list_t *lst,symbol_t *
 }
 
 static void gen_load_func(gen_info_t *ei,env_t *env,list_t *lst){
+
+#ifdef __DEBUG__
+  printf("gen_load_func\n");
+#endif
   
 #ifdef __LINUX__
   EMIT(ei,"leaq %s(#rip),#rax",(string_t)car(lst));
@@ -2148,7 +2219,10 @@ static void gen_load_func(gen_info_t *ei,env_t *env,list_t *lst){
 }
 
 static void gen_gload(gen_info_t *ei,env_t *env,list_t *lst,symbol_t *sym){
-  
+
+#ifdef __DEBUG__
+  printf("gen_gload\n");
+#endif
   char *inst = get_load_inst(ei,env,lst,sym);
   EMIT(ei,"%s %s+%d(#rip), #rax", inst, (char *)car(lst), 0);
   
@@ -2160,6 +2234,10 @@ static char *get_load_inst(gen_info_t *ei,env_t *env,list_t *lst,symbol_t *symbo
   char *inst;
   list_t *next;
   
+#ifdef __DEBUG__
+  printf("get_load_inst\n");
+#endif
+  inst = NULL;
   next = cdr(lst);
   if(is_address(next)){
     return "lea";
@@ -2167,6 +2245,10 @@ static char *get_load_inst(gen_info_t *ei,env_t *env,list_t *lst,symbol_t *symbo
     return "mov";
   }
 
+  if(SYMBOL_GET_KIND(symbol) == KIND_POINTER){
+	return "movq";
+  }
+	
   switch(SYMBOL_GET_SIZE(symbol)){
   case 1:
     inst = "movsb";
@@ -2181,12 +2263,15 @@ static char *get_load_inst(gen_info_t *ei,env_t *env,list_t *lst,symbol_t *symbo
     inst = "mov";
     break;
   }
-  
+
   return inst;
 }
 
 static void gen_save(gen_info_t *ei,env_t *env,list_t *lst){
-  
+
+#ifdef __DEBUG__
+  printf("gen_save\n");
+#endif
   if(is_deref(cdr(lst))){
     gen_deref(ei,env,lst);
   } else {
@@ -2207,6 +2292,9 @@ static void gen_gsave(gen_info_t *ei,env_t *env,list_t *name,symbol_t *sym){
   char *reg;
   char addr[256];
   
+#ifdef __DEBUG__
+  printf("gen_gsave\n");
+#endif  
   reg = get_int_reg(SYMBOL_GET_SIZE(sym));
   
   sprintf(addr,"%s+%d(%%rip)",(string_t)car(name),0);
@@ -2221,6 +2309,10 @@ static void gen_lsave(gen_info_t *ei,env_t *env,symbol_t *sym){
   char *reg;
   type_t type;
   char addr[256];
+
+#ifdef __DEBUG__
+  printf("gen_lsave\n");
+#endif
   
   type = SYMBOL_GET_TYPE(sym);
   off = SYMBOL_GET_OFFSET(sym);
@@ -2334,9 +2426,9 @@ static list_t *gen_cast(gen_info_t *ei,env_t *env,list_t *lst){
   type_t src_type;
   type_t cast_type;
   
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_cast\n");
-  #endif
+#endif
 
   val = make_null();
   cast_type = gen_type(tail(car(lst)));
@@ -2363,9 +2455,9 @@ static list_t *gen_cast(gen_info_t *ei,env_t *env,list_t *lst){
 
 static void gen_cast_int(gen_info_t *ei,type_t src_type){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_cast_int\n");
-  #endif
+#endif
 
   switch(src_type){
   case TYPE_SHORT:
@@ -2380,9 +2472,9 @@ static void gen_cast_int(gen_info_t *ei,type_t src_type){
 
 static void gen_cast_long(gen_info_t *ei,type_t src_type){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_cast_int\n");
-  #endif
+#endif
   
   switch(src_type){
   case TYPE_SHORT:
@@ -2474,13 +2566,36 @@ static list_t *gen_access_member(gen_info_t *ei,env_t *env,list_t *lst){
 static list_t *gen_ref_member(gen_info_t *ei,env_t *env,list_t *lst){
 
   list_t *member;
+  list_t *type_lst;
   symbol_t *sym;
   compound_def_t *compound;
   int base;
   int offset;
 
+#ifdef __DEBUG__
+  printf("gen_ref_member\n");
+#endif
+  
   sym = lookup_obj(env,car(lst));
-  compound = lookup_obj(env,car(SYMBOL_GET_TYPE_LST(sym)));
+  if(!sym){
+	printf("Not found object : [%s]\n",car(lst));
+	DUMP_AST(lst);
+	exit(1);
+  }
+
+  type_lst = SYMBOL_GET_TYPE_LST(sym);
+  DUMP_AST(type_lst);
+  if(is_pointer(type_lst)){
+	compound = lookup_obj(env,car(get_def_type_lst(type_lst)));
+  } else {
+	compound = lookup_obj(env,car(get_def_type_lst(type_lst)));
+  }
+  
+  if(!compound){
+	printf("Not found object : [%s]\n",car(SYMBOL_GET_TYPE_LST(sym)));
+	DUMP_AST(SYMBOL_GET_TYPE_LST(sym));
+	exit(1);
+  }
   
   member = lookup_member(COMPOUND_TYPE_GET_MEMBERS(compound),car(cdr(lst)));
   
@@ -2504,7 +2619,9 @@ static list_t *gen_ref_member(gen_info_t *ei,env_t *env,list_t *lst){
 
 static void gen_continue(gen_info_t *ei,env_t *env,list_t *lst){
 
-  
+#ifdef __DEBUG__
+  printf("gen_continue\n");
+#endif
   
   return;
 }
@@ -2512,6 +2629,9 @@ static void gen_continue(gen_info_t *ei,env_t *env,list_t *lst){
 static char *get_int_reg(int size){
 
   char *reg;
+#ifdef __DEBUG__
+  printf("get_int_reg\n");
+#endif
   
   switch(size){
   case 1:
@@ -2527,6 +2647,10 @@ static char *get_int_reg(int size){
     break;
   }
 
+#ifdef __DEBUG__
+  printf("reg : %s\n",reg);
+#endif
+  
   return reg;
 }
 
@@ -2638,9 +2762,9 @@ static list_t *lookup_primitive_symbol(env_t *env,string_t name){
 
   symbol_t *symbol;
   
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("lookup_primitive_symbol\n");
-  #endif
+#endif
   
   symbol = lookup_obj(env,name);
   if(!symbol){
@@ -2739,9 +2863,9 @@ static string_t emit_no_name_label(gen_info_t *ei){
 
 static int gen_regsave(gen_info_t *ei){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("gen_regsave\n");
-  #endif
+#endif
   
   EMIT(ei,"sub $%d, #rsp",SAVED_REGISTER_SIZE);
   EMIT(ei,"mov #rdi,   (#rbp)");
