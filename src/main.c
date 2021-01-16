@@ -106,6 +106,9 @@ static void show_version(){
   printf("show_version\n");
   #endif
 
+  fprintf(stdout,"xcc version %s\n",XCC_VERSION);
+  exit(1);
+
   return;
 }
 

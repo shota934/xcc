@@ -16,6 +16,8 @@
 //#define __DEBUG__
 //#define __CPP__DEBUG__
 
+#define XCC_VERSION "0.1"
+
 #define TRUE !0
 #define FALSE 0
 #define NULL_CHAR '\0'
