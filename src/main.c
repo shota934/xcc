@@ -37,6 +37,10 @@ static void compile(opt_info_t *optinfo,string_t name){
   stack_ty *stack;
   lexer_t *lexer;
   compile_info_t *com;
+
+#ifdef __DEBUG__
+  printf("compile\n");
+#endif
   
   com = create_compile_info();
   file = file_create();
@@ -87,7 +91,10 @@ static void cgen(list_t *ast,char *name){
   gen_info_t *ei;
   env_t *env;
   file_t *output_file;
-  
+#ifdef __DEBUG__
+  printf("cgen\n");
+#endif
+
   ei = create_gen_info();
   env = make_env();
   output_file = create_outfile(name);
@@ -102,9 +109,9 @@ static void cgen(list_t *ast,char *name){
 
 static void show_version(){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("show_version\n");
-  #endif
+#endif
 
   fprintf(stdout,"xcc version %s\n",XCC_VERSION);
   exit(1);
@@ -114,9 +121,9 @@ static void show_version(){
 
 static void show_help(){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("show_help\n");
-  #endif
+#endif
 
   fprintf(stdout,"Options:\n");
   fprintf(stdout,"\t-d\t\tDump ast\n");
@@ -132,9 +139,9 @@ static void show_help(){
 static void parse_opt(opt_info_t *optinfo,int argc,char *argv[]){
 
   int opt;
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("show_help\n");
-  #endif
+#endif
   
   opt = 0;
   while((opt = getopt(argc,argv,"dhvcSoE:")) != -1){
@@ -158,7 +165,7 @@ static void parse_opt(opt_info_t *optinfo,int argc,char *argv[]){
 	  show_help();
 	  break;
     default:
-      break;
+	  break;
     }
   }
   
