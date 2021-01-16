@@ -21,6 +21,7 @@
 static void compile(opt_info_t *optinfo,string_t name);
 static void cgen(list_t *ast,char *name);
 static void show_version();
+static void show_help();
 static void parse_opt(opt_info_t *optinfo,int argc,char *argv[]);
 static list_t *parse_src(compile_info_t *com,parser_t *parser);
 static file_t *create_outfile(char *name);
@@ -108,12 +109,32 @@ static void show_version(){
   return;
 }
 
+static void show_help(){
+
+  #ifdef __DEBUG__
+  printf("show_help\n");
+  #endif
+
+  fprintf(stdout,"Options:\n");
+  fprintf(stdout,"\t-d\t\tDump ast\n");
+  fprintf(stdout,"\t-E\t\tOnly run preprocess\n");
+  fprintf(stdout,"\t-S\t\nOnly run compiling\n");
+  fprintf(stdout,"\t-v\t\tPrint version\n");
+
+  exit(1);
+
+  return;
+}
+
 static void parse_opt(opt_info_t *optinfo,int argc,char *argv[]){
 
   int opt;
+  #ifdef __DEBUG__
+  printf("show_help\n");
+  #endif
   
   opt = 0;
-  while((opt = getopt(argc,argv,"dvcSoE:")) != -1){
+  while((opt = getopt(argc,argv,"dhvcSoE:")) != -1){
     switch(opt){
     case 'v':
       show_version();
@@ -130,6 +151,9 @@ static void parse_opt(opt_info_t *optinfo,int argc,char *argv[]){
     case 'E':
       SET_ONLY_PREPROCESS(optinfo,TRUE);
       break;
+	case 'h':
+	  show_help();
+	  break;
     default:
       break;
     }
