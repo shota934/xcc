@@ -37,5 +37,6 @@ bool_t is_typdef(list_t *lst);
 int convert_hex_to_int(char *hex);
 bool_t is_var_len_args(list_t *lst);
 list_t *get_def_type_lst(list_t *lst);
+bool_t is_var_args(list_t *lst);
 
 #endif

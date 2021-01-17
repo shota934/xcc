@@ -73,4 +73,5 @@
 #define SIGNED          "signed"
 #define UNSIGNED        "unsigned"
 #define NO_NAME         "no-name"
+#define VAR_ARGS        "..."
 

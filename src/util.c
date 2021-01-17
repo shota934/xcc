@@ -299,3 +299,16 @@ list_t *get_def_type_lst(list_t *lst){
 	return lst;
   }
 }
+
+bool_t is_var_args(list_t *lst){
+
+  list_t *l;
+
+  l = tail(lst);
+  if(STRCMP(car(l),VAR_ARGS)){
+	return TRUE;
+  } else {
+	return FALSE;
+  }
+
+}

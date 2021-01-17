@@ -451,8 +451,11 @@ static void gen_function(gen_info_t *ei,env_t *env,list_t *function){
   EMIT(ei,"mov #rsp, #rbp");
 
   args = get_args(function);
+  if(is_var_args(args)){
+	gen_regsave(ei);
+  }
   if(IS_NOT_NULL_LIST(args)){
-    gen_func_parms(ei,env,args);
+	gen_func_parms(ei,env,args);
   }
   
   list_t *local = get_local_vars(function);
