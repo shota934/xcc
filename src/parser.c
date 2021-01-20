@@ -778,8 +778,10 @@ static list_t *parser_parse_stmt(parser_t *parser){
   
   t = lexer_get_token(PARSER_GET_LEX(parser));
   new_lst = make_null();
-
-  if(IS_RET(t)){
+  if(IS_SEMI_COLON(t)){
+	new_lst = add_list(make_null(),new_lst);
+	return new_lst;
+  } else if(IS_RET(t)){
     new_lst = concat(new_lst,add_list(make_null(),parser_parse_cond_expr(parser)));
     new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
     new_lst = add_list(make_null(),new_lst);
