@@ -233,22 +233,22 @@ static void cprereaddefs(compile_info_t *com,lexer_t *lexer,bool_t flag,bool_t p
     } else {
       
       if(is_terminate_symbol(t) && flag){
-	put_token(lexer,t);
-	return;
+		put_token(lexer,t);
+		return;
       } else if(IS_EOT(t)){
-	lexer->lst = concat(lexer->lst,cons(make_null(),t));
-	return;
+		lexer->lst = concat(lexer->lst,cons(make_null(),t));
+		return;
       }
       
       if(!IS_LETTER(t)){
-	lexer->lst = concat(lexer->lst,cons(make_null(),t));
+		lexer->lst = concat(lexer->lst,cons(make_null(),t));
       } else {
-	macro_t *macro = map_get(COM_GET_MACROS(com),TOKEN_GET_STR(t));
-	if(macro){
-	  expand_macro(com,lexer,macro);
-	} else {
-	  lexer->lst = concat(lexer->lst,cons(make_null(),t));
-	}
+		macro_t *macro = map_get(COM_GET_MACROS(com),TOKEN_GET_STR(t));
+		if(macro){
+		  expand_macro(com,lexer,macro);
+		} else {
+		  lexer->lst = concat(lexer->lst,cons(make_null(),t));
+		}
       }
     }
   }
@@ -374,13 +374,6 @@ static void read_next_include(compile_info_t *com,lexer_t *lexer){
   
   srcinfo = pop(COM_GET_STACK(com));
 
-  /*
-  printf("-------------------------------\n");
-  printf("pre_srcinfo : [%s]\n",FILE_GET_NAME(SOURCE_INFO_GET_FILE(pre_srcinfo)));
-  printf("srcinfo     : [%s]\n",FILE_GET_NAME(SOURCE_INFO_GET_FILE(srcinfo)));
-  printf("-------------------------------\n");
-  */
-  
   file = SOURCE_INFO_GET_FILE(srcinfo);
   COM_SET_SRC_INFO(com,srcinfo);
   src = file_read_as_string(SOURCE_INFO_GET_FILE(srcinfo));
@@ -398,47 +391,6 @@ static void read_next_include(compile_info_t *com,lexer_t *lexer){
 
   return;
 }
-
-/*
-static void read_next_include(compile_info_t *com,lexer_t *lexer){
-
-  string_t src;
-  source_info_t *srcinfo;
-  source_info_t *pre_srcinfo;
-  file_t *file;
-  
-#ifdef __DEBUG__
-  printf("read_next_include\n");
-#endif
-
-  pre_srcinfo = COM_GET_SRC_INFO(com);
-  save_lexinfo(pre_srcinfo,lexer);
-  
-  srcinfo = top(COM_GET_STACK(com));
-
-  printf("-------------------------------\n");
-  printf("pre_srcinfo : [%s]\n",FILE_GET_NAME(SOURCE_INFO_GET_FILE(pre_srcinfo)));
-  printf("srcinfo     : [%s]\n",FILE_GET_NAME(SOURCE_INFO_GET_FILE(srcinfo)));
-  printf("-------------------------------\n");
-  
-  file = SOURCE_INFO_GET_FILE(srcinfo);
-  COM_SET_SRC_INFO(com,srcinfo);
-  src = file_read_as_string(SOURCE_INFO_GET_FILE(srcinfo));
-  lexer_set_src(lexer,src);
-  LEXER_SET_NAME(lexer,file);
-  
-  cprereaddefs(com,lexer,FALSE,TRUE);
-  
-  save_lexinfo(COM_GET_SRC_INFO(com),lexer);
-  COM_SET_SRC_INFO(com,pre_srcinfo);
-  load_lexinfo(COM_GET_SRC_INFO(com),lexer);
-
-  srcinfo = COM_GET_SRC_INFO(com);
-  file = SOURCE_INFO_GET_FILE(srcinfo);
-
-  return;
-}
-*/
 
 static void read_define(compile_info_t *com,lexer_t *lexer){
 
@@ -1167,6 +1119,9 @@ static void dump_token_sequence(list_t  *lst){
   
   for(l = lst; IS_NOT_NULL_LIST(l); l = cdr(l)){
     t = (token_t *)car(l);
+	if(TOKEN_EOT == TOKEN_GET_TYPE(t)){
+	  continue;
+	}
     printf(" %s ",TOKEN_GET_STR(t));
   }
   

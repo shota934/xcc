@@ -97,7 +97,7 @@ bool_t is_structtype(list_t *lst){
 }
 
 bool_t is_compund_type(list_t *lst){
-  
+
   string_t symbol;
   bool_t flag;
   if(!IS_SYMBOL(lst)){
@@ -311,4 +311,24 @@ bool_t is_var_args(list_t *lst){
 	return FALSE;
   }
 
+}
+
+bool_t is_compound_type(list_t *lst){
+
+  if(STRCMP(car(lst),STRUCT)
+	 || STRCMP(car(lst),UNION)){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+
+bool_t is_compound_alloc_type(list_t *lst){
+
+  if(STRCMP(car(lst),STRUCT_ALLOC)
+	 || STRCMP(car(lst),UNION_ALLOC)){
+	return TRUE;
+  }
+
+  return FALSE;
 }

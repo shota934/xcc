@@ -14,6 +14,9 @@
 #define LIST_SET_SYMBOL_KIND(l,k) l->obj.symbol.kind = k
 #define LIST_GET_SYMBOL_KIND(l)   l->obj.symbol.kind
 
+#define LIST_GET_SYMBOL_OFFSET(l) l->obj.symbol.offset
+#define LIST_SET_SYMBOL_OFFSET(l,o) l->obj.symbol.offset = o
+
 enum list_type_t{
   LIST,
   INTEGER,
@@ -40,6 +43,7 @@ struct list_t {
       int len;
       type_t type;
       kind_t kind;
+	  int offset;
     } symbol;
 
     struct {

@@ -126,6 +126,8 @@ list_t *add_symbol(list_t *lst,char *text){
   new_lst->type = SYMBOL;
   new_lst->next = lst;
   new_lst->obj.symbol.text = text;
+  new_lst->obj.symbol.offset = 0;
+  new_lst->obj.symbol.len = STRLEN(text);
 
   return new_lst;
 }

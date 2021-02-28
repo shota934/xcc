@@ -13,7 +13,7 @@
 #include "dump.h"
 
 #define __LINUX__
-//#define __DEBUG__
+#define __DEBUG__
 //#define __CPP__DEBUG__
 
 #define XCC_VERSION "0.1"
@@ -52,8 +52,14 @@
 
 #ifdef __DEBUG__
 #define DUMP_AST(a) dump_ast(a)
+#define ASSERT(e)   assert(e)
 #else
 #define DUMP_AST(a)
+#define ASSERT(e)
 #endif
+
+#define BUILT_IN_VA_START  "__builtin_va_start"
+#define BUILT_IN_VA_ARG    "__builtin_va_arg"
+#define BUILT_IN_VA_END    "__builtin_va_end"
 
 #endif

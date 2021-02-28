@@ -9,6 +9,7 @@
 #include "mem.h"
 #include "typecheck.h"
 #include "error.h"
+#include "common.h"
 //----
 #include "dump.h"
 //----
@@ -113,7 +114,7 @@
 static list_t *parser_parse_def(parser_t *parser);
 static list_t *parser_parse_storage_class_dcl(parser_t *parser);
 
-static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef);
+static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef,int flag_of_type);
 static list_t *parser_parse_ext_dcls(parser_t *parser);
 static list_t *parser_parse_dclation(parser_t *parser);
 static list_t *parser_parse_declvar(list_t *type,list_t *lst,list_t *init_lst);
@@ -159,6 +160,9 @@ static list_t *parser_parse_func_args(parser_t *parser);
 static list_t *parser_parse_func_arg(parser_t *parser);
 static list_t *parser_parse_array_index(parser_t *parser);
 static list_t *parser_parse_sizeoftype(parser_t *parser);
+static list_t *parser_parse_cast(parser_t *parser,list_t *cast_type);
+static list_t *parser_parse_unary_expr(parser_t *parser);
+static list_t *parser_parse_pointer(parser_t *parser);
 static void list_set_symbol_type(list_t *lst,type_t type,kind_t kind);
 
 static list_t *parser_parse_dcl(parser_t *parser);
@@ -174,6 +178,8 @@ static int is_type_qualifier(token_t *t);
 static int is_dclvar(list_t *lst);
 static int is_dcl(list_t *lst);
 static int is_typedef_name(parser_t *parser,token_t *token);
+static bool_t is_buildin_func(list_t *lst);
+static void record_obj_set(parser_t *parser,list_t *lst);
 
 parser_t *parser_create(){
   
@@ -187,7 +193,7 @@ void parser_init(parser_t *parser){
 
   parser->var_lst = make_null();
   parser->set = set_create();
-  
+
   return;
 }
 
@@ -406,7 +412,7 @@ static list_t *parser_parse_member(parser_t *parser){
   
   new_lst = make_null();
   quali_type_lst = parser_parse_type_qualifier_list(parser);
-  type_lst = parser_parse_type(parser,FALSE);
+  type_lst = parser_parse_type(parser,FALSE,FALSE);
   new_lst = parser_parse_dcl(parser);
   new_lst = parser_parse_func(parser,type_lst,new_lst,quali_type_lst,VARIABLE_DECL);
   
@@ -443,7 +449,7 @@ static list_t *parser_parse_storage_class_dcl(parser_t *parser){
   return new_lst;
 }
 
-static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef){
+static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef,int flag_of_type){
 
   list_t *new_lst;
   list_t *qu_ty_lst;
@@ -455,7 +461,7 @@ static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef){
 #endif
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_TYPE(t) || is_typedef_name(parser,t)){
-    new_lst = parser_parse_type(parser,flag_of_typedef);
+    new_lst = parser_parse_type(parser,flag_of_typedef,flag_of_type);
     new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
   } else if(IS_STRUCT(t) || IS_UNION(t)){
     bool_t flag = TRUE;
@@ -464,20 +470,20 @@ static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef){
       new_lst = parser_parse_typedef_union_or_struct(parser,new_lst,flag);
     } else {
       if(IS_LIST(cdr(new_lst))){
-	new_lst = add_symbol(new_lst,STRUCT_DEF);
+		new_lst = add_symbol(new_lst,STRUCT_DEF);
       } else {
-	new_lst = add_symbol(new_lst,STRUCT_ALLOC);
+		new_lst = add_symbol(new_lst,STRUCT_ALLOC);
       }
     }
   } else if (IS_UNION(t)){
       if(flag_of_typedef){
-	new_lst = add_symbol(new_lst,UNION_DEF);
+		new_lst = add_symbol(new_lst,UNION_DEF);
       } else {
-	if(IS_LIST(cdr(new_lst))){
-	  new_lst = add_symbol(new_lst,UNION_DEF);
-	} else {
-	  new_lst = add_symbol(new_lst,UNION_ALLOC);
-	}
+		if(IS_LIST(cdr(new_lst))){
+		  new_lst = add_symbol(new_lst,UNION_DEF);
+		} else {
+		  new_lst = add_symbol(new_lst,UNION_ALLOC);
+		}
       }
   } else if(IS_ENUM(t)){
     if(flag_of_typedef){
@@ -487,6 +493,9 @@ static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef){
     }
   } else if(IS_LETTER(t) && set_find_obj(PARSER_GET_SET(parser),TOKEN_GET_STR(t))){
     new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
+  } else if(IS_POINTER(t) && flag_of_type){
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+	new_lst = parser_parse_pointer(parser);
   } else {
     lexer_put_token(PARSER_GET_LEX(parser),t);
   }
@@ -536,7 +545,7 @@ static list_t *parser_parse_dclation(parser_t *parser){
   }
   
   quali_type_lst = parser_parse_type_qualifier_list(parser);
-  type_lst = parser_parse_type(parser,flag);
+  type_lst = parser_parse_type(parser,flag,FALSE);
   if(IS_NULL_LIST(type_lst)){
     return dcl_lst;
   }
@@ -629,9 +638,9 @@ static list_t *parser_parse_func(parser_t *parser,list_t *type,list_t *lst,list_
   } else if(VARIABLE_DECL == decl_type){
     if(is_dclvar(new_lst)){
       new_lst = add_list(make_null(),new_lst);
-    }
+	}
   } else if(TYPEDEF_DECL == decl_type){
-    set_add_obj(PARSER_GET_SET(parser),car(cdr(new_lst)));
+	record_obj_set(parser,cdr(new_lst));
   }
   
   return new_lst;
@@ -681,7 +690,7 @@ static list_t *parser_parse_funcarg(parser_t *parser){
 #endif
 
   quali_type_lst = parser_parse_type_qualifier_list(parser);
-  type_lst = parser_parse_type(parser,FALSE);
+  type_lst = parser_parse_type(parser,FALSE,FALSE);
   new_lst = parser_parse_dcl(parser);
   new_lst = parser_parse_func(parser,type_lst,new_lst,quali_type_lst,VARIABLE_DECL);
 
@@ -1043,6 +1052,9 @@ static list_t *parser_parse_term(parser_t *parser){
   list_t *new_lst;
   token_t *t;
 
+#ifdef __DEBUG__
+  printf("parser_parse_term\n");
+#endif
   new_lst = parser_parse_factor(parser);
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_MUL(t)
@@ -1063,7 +1075,10 @@ static list_t *parser_parse_factor(parser_t *parser){
   
   list_t *new_lst;
   token_t *t;
-  
+
+#ifdef __DEBUG__
+  printf("parser_parse_factor\n");
+#endif
   new_lst = make_null();
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_NUMBER(t)){
@@ -1083,8 +1098,8 @@ static list_t *parser_parse_factor(parser_t *parser){
     t = lexer_get_token(PARSER_GET_LEX(parser));
     if(IS_LPAREN(t)){
       new_lst = concat(new_lst,parser_parse_func_call(parser));
-      new_lst = add_symbol(new_lst,FUNC_CALL);
-      new_lst = add_list(make_null(),new_lst);
+	  new_lst = add_symbol(new_lst,FUNC_CALL);
+	  new_lst = add_list(make_null(),new_lst);
     } else if(IS_LBRACKET(t)){
       new_lst = add_symbol(new_lst,ARRAY);
       new_lst = add_list(make_null(),concat(new_lst,parser_parse_array_index(parser)));
@@ -1141,7 +1156,7 @@ static list_t *parser_baracket_expr(parser_t *parser){
   list_t *new_lst;
   token_t *t;
   
-  new_lst = parser_parse_type(parser,FALSE);
+  new_lst = parser_parse_type(parser,FALSE,TRUE);
   if(IS_NULL_LIST(new_lst)){
     new_lst = parser_parse_bexpr(parser);
     t = lexer_get_token(PARSER_GET_LEX(parser));
@@ -1156,9 +1171,8 @@ static list_t *parser_baracket_expr(parser_t *parser){
     if(!IS_RPAREN(t)){
       exit(1);
     }
-    new_lst = concat(new_lst,parser_parse_cond_expr(parser));
-    new_lst = add_symbol(new_lst,CAST);
-    new_lst = add_list(make_null(),new_lst);
+
+	new_lst = parser_parse_cast(parser,new_lst);
   }
     
   return new_lst;
@@ -1457,13 +1471,62 @@ static list_t *parser_parse_sizeoftype(parser_t *parser){
   list_t *new_lst;
   token_t *t;
   
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("parser_parse_sizeoftype\n");
-  #endif
+#endif
 
   new_lst = parser_parse_dclation(parser);
   new_lst = add_symbol(new_lst,TYPE);
   
+  return new_lst;
+}
+
+static list_t *parser_parse_cast(parser_t *parser,list_t *cast_type){
+
+  list_t *new_lst;
+  list_t *sub_lst;
+
+#ifdef __DEBUG__
+  printf("parser_parse_cast\n");
+#endif
+
+  sub_lst = parser_parse_unary_expr(parser);
+  new_lst = add_symbol(cast_type,CAST);
+  new_lst = concat(new_lst,sub_lst);
+  new_lst = add_list(make_null(),new_lst);
+
+  return new_lst;
+}
+
+static list_t *parser_parse_unary_expr(parser_t *parser){
+
+  list_t *new_lst;
+
+#ifdef __DEBUG__
+  printf("parser_parse_unary_expr\n");
+#endif
+
+  new_lst = parser_parse_factor(parser);
+
+  return new_lst;
+}
+
+static list_t *parser_parse_pointer(parser_t *parser){
+
+  list_t *new_lst;
+  token_t *t;
+
+#ifdef __DEBUG__
+  printf("parser_parse_pointer\n");
+#endif
+
+  new_lst = make_null();
+  for(t = lexer_get_token(PARSER_GET_LEX(parser)); IS_ASTERISK(t);
+	  t = lexer_get_token(PARSER_GET_LEX(parser))){
+	new_lst = concat(new_lst,add_symbol(make_null(),TOKEN_GET_STR(t)));
+  }
+  lexer_put_token(PARSER_GET_LEX(parser),t);
+
   return new_lst;
 }
 
@@ -1476,9 +1539,13 @@ static void list_set_symbol_type(list_t *lst,type_t type,kind_t kind){
 }
 
 static list_t *parser_parse_dcl(parser_t *parser){
-  
+
   list_t *new_lst;
   token_t *t;
+
+#ifdef __DEBUG__
+  printf("parser_parse_dcl\n");
+#endif
   
   new_lst = make_null();
   for(t = lexer_get_token(PARSER_GET_LEX(parser)); IS_ASTERISK(t);
@@ -1529,6 +1596,9 @@ static list_t *parser_parse_dirdcl(parser_t *parser){
 static list_t *parser_parse_initializer(parser_t *parser){
   
   list_t *new_lst;
+#ifdef __DEBUG__
+  printf("parser_parse_initializer\n");
+#endif
   
   new_lst = parser_parse_cexpr(parser);
   
@@ -1554,5 +1624,34 @@ static int is_typedef_name(parser_t *parser,token_t *token){
   } else {
     return FALSE;
   }
+}
+
+static bool_t is_buildin_func(list_t *lst){
+
+#ifdef __DEBUG__
+  printf("is_buildin_func\n");
+#endif
+
+  if(STRCMP(BUILT_IN_VA_START,car(lst))){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+
+static void record_obj_set(parser_t *parser,list_t *lst){
+
+  list_t *l;
+#ifdef __DEBUG__
+  printf("record_obj_set\n");
+#endif
+
+  if(IS_LIST(lst)){
+	set_add_obj(PARSER_GET_SET(parser),car(car(lst)));
+  } else {
+	set_add_obj(PARSER_GET_SET(parser),car(lst));
+  }
+
+  return;
 }
 

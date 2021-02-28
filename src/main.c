@@ -100,7 +100,7 @@ static void cgen(list_t *ast,char *name){
   output_file = create_outfile(name);
   GEN_INF_SET_FILE(ei,output_file);
   file_open(output_file);
-  gen(ei,env,ast,TRUE);
+  gen(ei,env,ast);
   file_close(output_file);
   fre(output_file);
   
