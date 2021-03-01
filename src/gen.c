@@ -15,11 +15,20 @@
 
 #define IS_FUNC_DEF(n) STRCMP(FUNC_DEF,n)
 
+static list_t *get_args(list_t *lst);
+static list_t *get_local_vars(list_t *lst);
+static bool_t has_args(list_t *lst);
+
 static void emitf(gen_info_t *ei,int line, char *fmt, ...);
 
 static list_t *gen_funcdef(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_function(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_body(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_integer(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_ret(gen_info_t *gi);
+static list_t *gen_args(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_local_vars(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_return(gen_info_t *gi,env_t *env,list_t *lst);
 
 gen_info_t *create_gen_info(){
@@ -78,6 +87,23 @@ void delete_gen_info(gen_info_t *gi){
   return;
 }
 
+static list_t *get_args(list_t *lst){
+  return car(cdr(cdr(lst)));
+}
+
+static list_t *get_local_vars(list_t *lst){
+  return car(cdr(cdr(cdr(cdr(lst)))));
+}
+
+static bool_t has_args(list_t *lst){
+
+  if(IS_NULL_LIST(lst)){
+	return FALSE;
+  } else {
+	return TRUE;
+  }
+}
+
 static void emitf(gen_info_t *ei,int line, char *fmt, ...){
 
   char buf[256];
@@ -105,14 +131,16 @@ static void emitf(gen_info_t *ei,int line, char *fmt, ...){
 static list_t *gen_funcdef(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
+  env_t *new_env;
 #ifdef __DEBUG__
   printf("gen_funcdef\n");
 #endif
 
+  new_env = extend_env(env);
   val = make_null();
   val = concat(val,gen_function(gi,env,cdr(lst)));
   val = concat(val,gen_body(gi,env,car(cdr(cdr(cdr(cdr(lst)))))));
-  val = concat(val,gen_return(gi,env,(cdr(lst))));
+  val = concat(val,gen_ret(gi));
 
   return val;
 }
@@ -121,7 +149,7 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
   list_t *name;
-  env_t *new_env = extend_env(env);
+  list_t *args;
 
 #ifdef __DEBUG__
   printf("gen_function\n");
@@ -143,19 +171,116 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,list_t *lst){
   EMIT(gi,"pushq #rbp");
   EMIT(gi,"movq #rsp, #rbp");
 
+  gen_args(gi,env,get_args(lst));
+  gen_local_vars(gi,env,get_local_vars(lst));
+
   return val;
 }
 
 static list_t *gen_body(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
+  list_type_t type;
+
 #ifdef __DEBUG__
   printf("gen_body\n");
 #endif
   val = make_null();
   DUMP_AST(lst);
+  type = LIST_GET_TYPE(lst);
+  switch(type){
+  case LIST:
+	val = gen_body(gi,env,car(lst));
+	if(IS_NOT_NULL_LIST(cdr(lst))){
+	  val = concat(val,gen_body(gi,env,cdr(lst)));
+	}
+	break;
+  case INTEGER:
+	val = gen_integer(gi,env,lst);
+	break;
+  case SYMBOL:
+	val = gen_symbol(gi,env,lst);
+	break;
+  case NULL_LIST:
+	break;
+  default:
+	break;
+  }
 
-  EMIT(gi,"movq $50, #rax");
+  return val;
+}
+
+static list_t *gen_integer(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+  integer_t num;
+#ifdef __DEBUG__
+  printf("gen_integer\n");
+#endif
+
+  num = *(integer_t *)car(lst);
+  EMIT(gi,"movq $%d,#rax",num);
+
+  return add_number(make_null(),num);
+}
+
+static list_t *gen_ret(gen_info_t *gi){
+
+#ifdef __DEBUG__
+  printf("gen_ret\n");
+#endif
+
+  EMIT(gi,"movq #rbp ,#rsp");
+  EMIT(gi,"popq #rbp");
+  EMIT(gi,"ret");
+
+  return make_null();
+}
+
+static list_t *gen_args(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+#ifdef __DEBUG__
+  printf("gen_args\n");
+#endif
+
+  val = make_null();
+  if(has_args(lst)){
+
+  }
+
+  return val;
+}
+
+static list_t *gen_local_vars(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+  int localarea;
+#ifdef __DEBUG__
+  printf("gen_local_vars\n");
+#endif
+
+  val = make_null();
+
+  return val;
+}
+
+static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst){
+
+  string_t symbol;
+  list_t *val;
+#ifdef __DEBUG__
+  printf("gen_symbol\n");
+#endif
+
+  val = make_null();
+
+  symbol = (string_t)car(lst);
+  if(STRCMP(RETURN,symbol)){
+	val = gen_return(gi,env,cdr(lst));
+  } else {
+
+  }
 
   return val;
 }
@@ -167,12 +292,9 @@ static list_t *gen_return(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_return\n");
 #endif
 
-  val = make_null();
   DUMP_AST(lst);
-
-  EMIT(gi,"movq #rbp ,#rsp");
-  EMIT(gi,"popq #rbp");
-  EMIT(gi,"ret");
+  val = gen_body(gi,env,car(lst));
+  gen_ret(gi);
 
   return val;
 }
