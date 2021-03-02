@@ -9,6 +9,7 @@
 #include "mem.h"
 #include "inst.inc"
 
+#define SIZE sizeof(void *)
 #define EMIT_NO_INDENT(ei,...) emitf(ei,0x00,__VA_ARGS__)
 #define EMIT(ei,...)        emitf(ei,__LINE__, "\t" __VA_ARGS__)
 #define GET_OUTPUT_FILE(ei)        FILE_GET_FP(ei->output_file)
@@ -30,6 +31,10 @@ static list_t *gen_args(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_local_vars(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_return(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_func_parms(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index);
+static void push(gen_info_t *gi,string_t reg);
+static void pop(gen_info_t *gi,string_t reg);
 
 gen_info_t *create_gen_info(){
 
@@ -104,7 +109,7 @@ static bool_t has_args(list_t *lst){
   }
 }
 
-static void emitf(gen_info_t *ei,int line, char *fmt, ...){
+static void emitf(gen_info_t *gi,int line, char *fmt, ...){
 
   char buf[256];
   int i = 0;
@@ -120,10 +125,10 @@ static void emitf(gen_info_t *ei,int line, char *fmt, ...){
 
   va_list args;
   va_start(args,fmt);
-  vfprintf(GET_OUTPUT_FILE(ei),buf,args);
+  vfprintf(GET_OUTPUT_FILE(gi),buf,args);
   va_end(args);
 
-  fprintf(GET_OUTPUT_FILE(ei),"\n");
+  fprintf(GET_OUTPUT_FILE(gi),"\n");
 
   return;
 }
@@ -168,7 +173,7 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,list_t *lst){
   EMIT_NO_INDENT(gi,"_%s:",(string_t)car(name));
 #endif
 
-  EMIT(gi,"pushq #rbp");
+  push(gi,"rbp");
   EMIT(gi,"movq #rsp, #rbp");
 
   gen_args(gi,env,get_args(lst));
@@ -231,7 +236,7 @@ static list_t *gen_ret(gen_info_t *gi){
 #endif
 
   EMIT(gi,"movq #rbp ,#rsp");
-  EMIT(gi,"popq #rbp");
+  pop(gi,"rbp");
   EMIT(gi,"ret");
 
   return make_null();
@@ -246,7 +251,7 @@ static list_t *gen_args(gen_info_t *gi,env_t *env,list_t *lst){
 
   val = make_null();
   if(has_args(lst)){
-
+	gen_func_parms(gi,env,lst);
   }
 
   return val;
@@ -297,4 +302,59 @@ static list_t *gen_return(gen_info_t *gi,env_t *env,list_t *lst){
   gen_ret(gi);
 
   return val;
+}
+
+static list_t *gen_func_parms(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+  list_t *p;
+  int area;
+  int i;
+
+#ifdef __DEBUG__
+  printf("gen_func_parms\n");
+#endif
+  val = make_null();
+
+  area = 0;
+  i = 0;
+  for(p = lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
+	gen_func_parm(gi,env,car(p),i);
+	i++;
+  }
+
+  return val;
+}
+
+static list_t *gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index){
+
+  list_t *name;
+  list_t *type_lst;
+  list_t *val;
+
+#ifdef __DEBUG__
+  printf("gen_func_parm\n");
+#endif
+
+  val = make_null();
+  type_lst = car(lst);
+  name = cdr(lst);
+
+  return val;
+}
+
+static void push(gen_info_t *gi,string_t reg){
+
+  EMIT(gi,"pushq #%s",reg);
+  gi->stack_pos += SIZE;
+
+  return;
+}
+
+static void pop(gen_info_t *gi,string_t reg){
+
+  EMIT(gi,"popq #%s",reg);
+  gi->stack_pos -= SIZE;
+
+  return;
 }
