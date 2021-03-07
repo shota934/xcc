@@ -13,6 +13,7 @@ symbol_t *create_symbol(){
   symbol_t *sym;
   
   sym = mem(sizeof(symbol_t));
+  sym->obj_type.type = TYPE_SYMBOL;
   sym->type = TYPE_UNDEFINE;
   sym->kind = KIND_UNDEFINE;
   sym->var_type = UNDEFINE_VARIABLE;

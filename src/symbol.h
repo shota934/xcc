@@ -6,6 +6,7 @@
 #ifndef __INCLUDE__SYMBOL__
 #define __INCLUDE__SYMBOL__
 #include "type.h"
+#include "obj.h"
 
 #define SYMBOL_SET_VAR_TYPE(s,t) s->var_type = t
 #define SYMBOL_SET_TYPE(s,t) s->type = t
@@ -22,6 +23,7 @@
 #define SYMBOL_GET_TYPE_LST(s)  s->type_lst
 
 struct symbol_t {
+  object_t obj_type;
   list_t *type_lst;
   variable_type_t var_type;
   type_t type;

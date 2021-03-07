@@ -14,6 +14,7 @@ struct gen_info_t {
   file_t *output_file;
   int stack_pos;
   int offset;
+  int localarea;
 };
 
 gen_info_t *create_gen_info();

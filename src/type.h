@@ -38,11 +38,14 @@ typedef enum decl_type_t decl_type_t;
 typedef struct set_t set_t;
 typedef enum compound_type_t compound_type_t;
 typedef struct map_t map_t;
+typedef enum type_type_t type_type_t;
+typedef struct func_t func_t;
+typedef struct object_t object_t;
 
 enum kind_t {
   KIND_UNDEFINE,
   KIND_VARIABLE,
-  KIND_FUNCTION,
+  //KIND_FUNCTION,
   KIND_ADDRESS,
   KIND_DEREF,
   KIND_ENUM,
@@ -60,7 +63,7 @@ enum type_t {
   TYPE_FLOAT,
   TYPE_STRUCT,
   TYPE_ENUM,
-  TYPE_FUNCTION,
+  //TYPE_FUNCTION,
   TYPE_UNDEFINE,
   TYPE_TYPE,
   TYPE_POINTER,
@@ -87,10 +90,17 @@ enum decl_type_t {
   TYPEDEF_DECL
 };
 
+enum type_type_t {
+  TYPE_FUNCTION,
+  TYPE_SYMBOL,
+  TYPE_COMPOUND
+};
+
 enum compound_type_t {
   STRUCT_COMPOUND_TYPE,
   UNION_COMPOUND_TYPE,
   OTHER_COMPOUND_TYPE
 };
+
 
 #endif

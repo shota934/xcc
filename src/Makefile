@@ -2,7 +2,7 @@ CC=gcc
 OPT=-c
 CFLAGS=-g
 
-OBJS= main.o parser.o list.o lex.o mem.o dump.o file.o gen.o env.o util.o error.o cpp.o optinfo.o typecheck.o symbol.o compound_type.o stack.o com.o srcinfo.o set.o map.o macro.o
+OBJS= main.o parser.o list.o lex.o mem.o dump.o file.o gen.o env.o util.o error.o cpp.o optinfo.o typecheck.o symbol.o compound_type.o stack.o com.o srcinfo.o set.o map.o macro.o func.o
 TARGET=xcc
 
 xcc: ${OBJS}
@@ -76,6 +76,9 @@ map.o : map.c
 
 macro.o : macro.c
 	${CC} ${OPT} ${CFLAGS} macro.c
+
+func.o : func.c
+	${CC} ${OPT} ${CFLAGS} func.c
 
 test: xcc
 	./test.sh
