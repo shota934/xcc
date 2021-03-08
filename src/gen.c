@@ -30,6 +30,10 @@ char const *REGS[] = {"rdi","rsi","rdx","rcx","r8","r9"};
 #define DECL_TYPE_GET_TYPE(l) tail(car(car(cdr(lst))))
 #define DECL_TYPE_GET_NAME(l) tail(car(car(cdr(lst))))
 
+#define IS_ASSIGN(g) g->flag_of_assign
+#define ASSIGN_ON(g)  g->flag_of_assign = TRUE
+#define ASSIGN_OFF(g) g->flag_of_assign = FALSE
+
 static list_t *get_args(list_t *lst);
 static list_t *get_local_vars(list_t *lst);
 static bool_t has_args(list_t *lst);
@@ -51,13 +55,15 @@ static void gen_local_vars(gen_info_t *gi,env_t *env,list_t *lst);
 static int gen_loacl_ints(gen_info_t *gi,env_t *env,list_t *lst);
 static int gen_loacl_int(gen_info_t *gi,env_t *env,list_t *lst);
 
-static symbol_t *factory_symbol(gen_info_t *gi,list_t *lst);
+static symbol_t *factory_symbol(gen_info_t *gi,list_t *lst,scope_t scope);
 
 static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_decl_var(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_return(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_assign(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *lookup_symbol(env_t *env,string_t name);
+static list_t *gen_load(gen_info_t *gi,env_t *env,string_t name);
+static list_t *gen_local_load(gen_info_t *gi,env_t *env,symbol_t *sym);
 static list_t *gen_func_parms(gen_info_t *gi,env_t *env,list_t *lst);
 static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst);
 static symbol_t *gen_func_parm_primitive(gen_info_t *gi,env_t *env,list_t *lst);
@@ -79,6 +85,7 @@ gen_info_t *create_gen_info(){
   gi->stack_pos = 0;
   gi->offset = 0;
   gi->localarea = 0;
+  gi->flag_of_assign = FALSE;
 
   return gi;
 }
@@ -91,6 +98,7 @@ void init_gen_info(gen_info_t *gi){
   gi->stack_pos = 0;
   gi->offset = 0;
   gi->localarea = 0;
+  gi->flag_of_assign = FALSE;
 
   return;
 }
@@ -411,7 +419,7 @@ static int gen_loacl_int(gen_info_t *gi,env_t *env,list_t *lst){
   return select_size(DECL_TYPE_GET_TYPE(lst));
 }
 
-static symbol_t *factory_symbol(gen_info_t *gi,list_t *lst){
+static symbol_t *factory_symbol(gen_info_t *gi,list_t *lst,scope_t scope){
 
   symbol_t *sym;
   int size;
@@ -424,9 +432,10 @@ static symbol_t *factory_symbol(gen_info_t *gi,list_t *lst){
   dump_ast(lst);
   sym = create_symbol();
   size = select_size(lst);
+  gen_info_add_offset(gi,-size);
+
   offset = gen_info_get_offset(gi);
-  offset -= size;
-  gen_info_add_offset(gi,size);
+  SYMBOL_SET_SCOPE(sym,scope);
   SYMBOL_SET_SIZE(sym,size);
   SYMBOL_SET_OFFSET(sym,offset);
   SYMBOL_SET_TYPE_LST(sym,lst);
@@ -451,7 +460,11 @@ static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst){
   } else if(STRCMP(ASSIGN,symbol)){
 	val = gen_assign(gi,env,cdr(lst));
   } else {
-	val = lookup_symbol(env,symbol);
+	if(IS_ASSIGN(gi)){
+	  val = lookup_symbol(env,symbol);
+	} else {
+	  val = gen_load(gi,env,symbol);
+	}
   }
 
   return val;
@@ -470,7 +483,7 @@ static list_t *gen_decl_var(gen_info_t *gi,env_t *env,list_t *lst){
   dump_ast(lst);
 
   name = car(cdr(lst));
-  symbol = factory_symbol(gi,car(lst));
+  symbol = factory_symbol(gi,car(lst),LOCAL);
   insert_obj(env,name,symbol);
 
   return val;
@@ -488,11 +501,12 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_assign\n");
 #endif
 
-  // LHS
+
+  ASSIGN_ON(gi);
   l = gen_operand(gi,env,lst);
+  ASSIGN_OFF(gi);
   sym = (symbol_t *)car(l);
 
-  // RHS
   r = gen_operand(gi,env,cdr(lst));
 
   op = select_inst(SYMBOL_GET_SIZE(sym));
@@ -517,6 +531,56 @@ static list_t *lookup_symbol(env_t *env,string_t name){
   }
 
   return cons(make_null(),sym);
+}
+
+static list_t *gen_load(gen_info_t *gi,env_t *env,string_t name){
+
+  symbol_t *sym;
+  list_t *val;
+
+#ifdef __DEBUG__
+  printf("gen_load\n");
+#endif
+
+  sym = lookup_obj(env,name);
+  if(!sym){
+	exit(1);
+  }
+
+  switch(SYMBOL_GET_SCOPE(sym)){
+  case LOCAL:
+	val = gen_local_load(gi,env,sym);
+	break;
+  case GLOBAL:
+	val = make_null();
+	break;
+  default:
+	val = make_null();
+	break;
+  }
+
+  return make_null();
+}
+
+static list_t *gen_local_load(gen_info_t *gi,env_t *env,symbol_t *sym){
+
+  list_t *val;
+  string_t inst;
+  string_t reg;
+  int offset;
+
+#ifdef __DEBUG__
+  printf("gen_local_load\n");
+#endif
+
+  val = make_null();
+  inst = select_inst(SYMBOL_GET_SIZE(sym));
+  reg = select_reg(SYMBOL_GET_SIZE(sym));
+  offset = SYMBOL_GET_OFFSET(sym);
+
+  EMIT(gi,"%s %d(#rbp),#%s",inst,offset,reg);
+
+  return val;
 }
 
 static list_t *gen_return(gen_info_t *gi,env_t *env,list_t *lst){

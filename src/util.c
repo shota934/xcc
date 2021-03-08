@@ -150,15 +150,6 @@ bool_t is_deref(list_t *lst){
   return STRCMP(car(lst),"*");
 }
 
-bool_t is_variable_kind(symbol_t *sym){
-  
-  if(!sym){
-    return FALSE;
-  }
-  
-  return KIND_VARIABLE == SYMBOL_GET_KIND(sym);
-}
-
 bool_t is_nedd_cast(list_t *lst){
   return *(kind_t *)car(lst) == KIND_VARIABLE;
 }

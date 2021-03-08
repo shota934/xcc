@@ -15,6 +15,7 @@ struct gen_info_t {
   int stack_pos;
   int offset;
   int localarea;
+  bool_t flag_of_assign;
 };
 
 gen_info_t *create_gen_info();

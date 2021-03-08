@@ -14,9 +14,7 @@ symbol_t *create_symbol(){
   
   sym = mem(sizeof(symbol_t));
   sym->obj_type.type = TYPE_SYMBOL;
-  sym->type = TYPE_UNDEFINE;
-  sym->kind = KIND_UNDEFINE;
-  sym->var_type = UNDEFINE_VARIABLE;
+  sym->scope = UNDEFINED;
   sym->size = 0;
   sym->offset = 0;
   sym->type_lst = make_null();

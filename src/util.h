@@ -24,7 +24,6 @@ bool_t is_compund_type(list_t *lst);
 bool_t is_pointer(list_t *lst);
 bool_t is_address(list_t *lst);
 bool_t is_deref(list_t *lst);
-bool_t is_variable_kind(symbol_t *sym);
 bool_t is_nedd_cast(list_t *lst);
 bool_t is_function_pointer(list_t *lst);
 bool_t is_array(list_t *lst);

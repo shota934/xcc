@@ -25,7 +25,7 @@ typedef struct struct_env_t struct_env_t;
 typedef struct opt_info_t opt_info_t;
 typedef struct enum_env_t enum_env_t;
 typedef enum type_t type_t;
-typedef enum variable_type_t variable_type_t;
+typedef enum scope_t scope_t;
 typedef enum kind_t kind_t;
 typedef enum access_type access_type;
 typedef enum macro_type_t macro_type_t;
@@ -77,11 +77,10 @@ enum access_type {
   TYPEDEF
 };
 
-enum variable_type_t {
-  LOCAL_VARIABLE,
-  GLOBAL_VARIABLE,
-  OTHER_VARIABLE,
-  UNDEFINE_VARIABLE
+enum scope_t {
+  UNDEFINED,
+  LOCAL,
+  GLOBAL
 };
 
 enum decl_type_t {
