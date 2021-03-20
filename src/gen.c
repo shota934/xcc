@@ -27,9 +27,7 @@ char const *REGS[] = {"rdi","rsi","rdx","rcx","r8","r9"};
 #define GET_OUTPUT_FILE(ei)        FILE_GET_FP(ei->output_file)
 
 #define IS_FUNC_DEF(n) STRCMP(FUNC_DEF,n)
-#define DECL_TYPE_GET_TYPE(l) tail(car(car(cdr(lst))))
-#define DECL_TYPE_GET_NAME(l) tail(car(car(cdr(lst))))
-
+#define DECL_TYPE_GET_TYPE(l) tail(lst)
 #define IS_ASSIGN(g) g->flag_of_assign
 #define ASSIGN_ON(g)  g->flag_of_assign = TRUE
 #define ASSIGN_OFF(g) g->flag_of_assign = FALSE
@@ -134,7 +132,7 @@ void delete_gen_info(gen_info_t *gi){
 }
 
 static list_t *get_args(list_t *lst){
-  return car(cdr(cdr(lst)));
+  return car(cdr(lst));
 }
 
 static list_t *get_local_vars(list_t *lst){
@@ -244,7 +242,7 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,list_t *lst){
   val = make_null();
   DUMP_AST(lst);
 
-  gen_func_name(gi,env,cdr(lst));
+  gen_func_name(gi,env,lst);
 
   push(gi,"rbp");
   EMIT(gi,"movq #rsp, #rbp");
@@ -381,7 +379,6 @@ static void gen_local_vars(gen_info_t *gi,env_t *env,list_t *lst){
 
   localarea = 0;
   val = make_null();
-  dump_ast(type_lst);
   localarea += gen_loacl_ints(gi,env,lst);
 
   gen_info_add_localarea(gi,localarea);
@@ -401,7 +398,7 @@ static int gen_loacl_ints(gen_info_t *gi,env_t *env,list_t *lst){
   p = lst;
   localarea = 0;
   while(IS_NOT_NULL_LIST(p)){
-	localarea += gen_loacl_int(gi,env,car(p));
+	localarea += gen_loacl_int(gi,env,cdr(cdr(car(p))));
 	p = cdr(p);
   }
 
@@ -429,7 +426,6 @@ static symbol_t *factory_symbol(gen_info_t *gi,list_t *lst,scope_t scope){
   printf("factory_symbol\n");
 #endif
 
-  dump_ast(lst);
   sym = create_symbol();
   size = select_size(lst);
   gen_info_add_offset(gi,-size);
@@ -456,7 +452,7 @@ static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst){
   if(STRCMP(RETURN,symbol)){
 	val = gen_return(gi,env,cdr(lst));
   } else if(STRCMP(DECL_VAR,symbol)){
-	val = gen_decl_var(gi,env,car(cdr(lst)));
+	val = gen_decl_var(gi,env,cdr(lst));
   } else if(STRCMP(ASSIGN,symbol)){
 	val = gen_assign(gi,env,cdr(lst));
   } else {
@@ -480,11 +476,10 @@ static list_t *gen_decl_var(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_decl_var\n");
 #endif
 
-  dump_ast(lst);
-
-  name = car(cdr(lst));
-  symbol = factory_symbol(gi,car(lst),LOCAL);
+  name = car(lst);
+  symbol = factory_symbol(gi,cdr(lst),LOCAL);
   insert_obj(env,name,symbol);
+  val = add_symbol(make_null(),name);
 
   return val;
 }
@@ -662,7 +657,7 @@ static integer_t select_size(list_t *lst){
   integer_t size;
 
 #ifdef __DEBUG__
-  printf("select_size");
+  printf("select_size\n");
 #endif
 
   if(STRCMP(car(lst),"*")){

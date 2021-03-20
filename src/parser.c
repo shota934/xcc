@@ -15,6 +15,7 @@
 //----
 
 #define ARRAY         "[]"
+#define FUNC          "FUNC"
 #define FUNC_CALL     "func-call"
 #define FUNC_DEF      "func-def"
 #define FUNC_DECL     "func-decl"
@@ -105,7 +106,7 @@
 #define IS_AUTO(t)        (TOKEN_GET_TYPE(t) == TOKEN_AUTO)
 #define IS_UNION(t)       (TOKEN_GET_TYPE(t) == TOKEN_UNION)
 #define IS_VAR_ARG_LIST(t) (TOKEN_GET_TYPE(t) ==  TOKEN_ARGMENT_LIST)
-#define IS_FUNC_DECL(l)   (length_of_list(l) == 3) && (IS_LIST(l))
+//#define IS_FUNC_DECL(l)   (length_of_list(l) == 3) && (IS_LIST(l))
 #define IS_STRUCT_OR_UNION_DEF(l)  (length_of_list(l) == 2)
 
 #define IS_DEFINED(t)    (TOKEN_GET_TYPE(t) == TOKEN_DEFINED)
@@ -119,6 +120,7 @@ static list_t *parser_parse_ext_dcls(parser_t *parser);
 static list_t *parser_parse_dclation(parser_t *parser);
 static list_t *parser_parse_declvar(list_t *type,list_t *lst,list_t *init_lst);
 static list_t *parser_parse_func(parser_t *parser,list_t *type,list_t *lst,list_t *q,decl_type_t decl_type);
+static list_t *parser_parse_func1(parser_t *parser,list_t *type,list_t *lst,list_t *q);
 static list_t *parser_parse_enum(parser_t *parser);
 static list_t *parser_parse_enum_elements(parser_t *parser);
 static list_t *parser_parse_enum_element(parser_t *parser);
@@ -168,7 +170,9 @@ static void list_set_symbol_type(list_t *lst,type_t type,kind_t kind);
 static list_t *parser_parse_dcl(parser_t *parser);
 
 static list_t *parser_parse_dirdcl(parser_t *parser);
+static list_t *parser_parse_subdirdcl(parser_t *parser);
 static list_t *parser_parse_dirdclvar(parser_t *parser,list_t *var);
+
 static list_t *parser_parse_initializer(parser_t *parser);
 static list_t *parser_parse_block_items(parser_t *parser);
 static list_t *parser_parse_block_item(parser_t *parser);
@@ -180,6 +184,11 @@ static int is_dcl(list_t *lst);
 static int is_typedef_name(parser_t *parser,token_t *token);
 static bool_t is_buildin_func(list_t *lst);
 static void record_obj_set(parser_t *parser,list_t *lst);
+static bool_t has_array(list_t *lst);
+static bool_t is_func_decl(list_t *lst);
+
+static list_t *create_func(parser_t *parser,list_t *lst);
+static list_t *create_ret_lst(parser_t *parser,list_t *lst);
 
 parser_t *parser_create(){
   
@@ -551,19 +560,20 @@ static list_t *parser_parse_dclation(parser_t *parser){
   }
   
   new_lst = parser_parse_dcl(parser);
-  new_lst = parser_parse_func(parser,type_lst,new_lst,quali_type_lst,decl_type);
+  new_lst = parser_parse_func1(parser,type_lst,new_lst,quali_type_lst);
   new_lst = concat(dcl_lst,new_lst);
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_LBRACE(t)){
     new_lst = concat(new_lst,add_list(make_null(),parser_parse_block_items(parser)));
     t = lexer_get_token(PARSER_GET_LEX(parser));
-    if(IS_RBRACE(t)){
-      new_lst = concat(add_symbol(make_null(),FUNC_DEF),new_lst);
-      new_lst = concat(new_lst,add_list(make_null(),PARSER_GET_VAR_LST(parser)));
-      PARSER_SET_VAR_LST(parser,make_null());
-      new_lst = add_list(make_null(),new_lst);
+    if(!IS_RBRACE(t)){
+	  exit(1);
     }
+	new_lst = create_func(parser,new_lst);
   } else if(IS_ASSIGN(t)){
+	list_t *lst = add_symbol(new_lst,DECL_VAR);
+	new_lst = add_list(make_null(),lst);
+	PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),lst)));
     new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
     new_lst = concat(new_lst,parser_parse_initializer(parser));
     new_lst = add_list(make_null(),new_lst);
@@ -572,9 +582,12 @@ static list_t *parser_parse_dclation(parser_t *parser){
       lexer_put_token(PARSER_GET_LEX(parser),t);
     }
   } else if(IS_SEMI_COLON(t)){
-    if(IS_FUNC_DECL(new_lst)){
+	if(is_func_decl(cdr(new_lst))){
+	  LIST_SET_NEXT(new_lst,cdr(cdr(new_lst)));
       new_lst = add_list(make_null(),concat(add_symbol(make_null(),FUNC_DECL),new_lst));
     } else if(!IS_LIST(new_lst)){
+	  new_lst = add_symbol(new_lst,DECL_VAR);
+	  PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),new_lst)));
       new_lst = add_list(make_null(),new_lst);
     }
   } else {
@@ -591,6 +604,19 @@ static list_t *parser_parse_declvar(list_t *type,list_t *lst,list_t *init_lst){
 
   new_lst = make_null();
   
+  return new_lst;
+}
+
+static list_t *parser_parse_func1(parser_t *parser,list_t *type,list_t *lst,list_t *q){
+
+  list_t *new_lst;
+
+#ifdef __DEBUG__
+  printf("parser_parse_func1\n");
+#endif
+
+  new_lst = concat(lst,type);
+
   return new_lst;
 }
 
@@ -624,7 +650,7 @@ static list_t *parser_parse_func(parser_t *parser,list_t *type,list_t *lst,list_
     }
     new_lst = add_list(make_null(),type);
   }
-  
+
   new_lst = concat(new_lst,p);
   new_lst = concat(q,new_lst);
 
@@ -692,7 +718,8 @@ static list_t *parser_parse_funcarg(parser_t *parser){
   quali_type_lst = parser_parse_type_qualifier_list(parser);
   type_lst = parser_parse_type(parser,FALSE,FALSE);
   new_lst = parser_parse_dcl(parser);
-  new_lst = parser_parse_func(parser,type_lst,new_lst,quali_type_lst,VARIABLE_DECL);
+  new_lst = parser_parse_func1(parser,type_lst,new_lst,quali_type_lst);
+  new_lst = add_list(make_null(),new_lst);
 
   return new_lst;
 }
@@ -837,7 +864,7 @@ static list_t *parser_parse_array(parser_t *parser){
   
   new_lst = parser_parse_cexpr(parser);
   t = lexer_get_token(PARSER_GET_LEX(parser));
-  new_lst = add_list(make_null(),add_symbol(new_lst,ARRAY));
+  new_lst = add_symbol(new_lst,ARRAY);
   
   return new_lst;
 }
@@ -1155,7 +1182,9 @@ static list_t *parser_baracket_expr(parser_t *parser){
 
   list_t *new_lst;
   token_t *t;
-  
+#ifdef __DEBUG__
+  printf("parser_baracket_expr\n");
+#endif
   new_lst = parser_parse_type(parser,FALSE,TRUE);
   if(IS_NULL_LIST(new_lst)){
     new_lst = parser_parse_bexpr(parser);
@@ -1166,7 +1195,7 @@ static list_t *parser_baracket_expr(parser_t *parser){
       new_lst = make_null();
     }
   } else {
-    new_lst = add_list(make_null(),new_lst);
+    new_lst = add_list(make_null(),reverse(new_lst));
     t = lexer_get_token(PARSER_GET_LEX(parser));
     if(!IS_RPAREN(t)){
       exit(1);
@@ -1184,7 +1213,9 @@ static list_t *parser_parse_if(parser_t *parser){
   list_t *seq_stmts;
   list_t *alt_stmts;
   token_t *t;
-  
+#ifdef __DEBUG__
+  printf("parser_parse_if\n");
+#endif
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_LPAREN(t)){
     
@@ -1430,6 +1461,10 @@ static list_t *parser_parse_func_args(parser_t *parser){
   list_t *new_lst;
   token_t *t;
 
+#ifdef __DEBUG__
+  printf("parser_parse_func_args\n");
+#endif
+
   new_lst = parser_parse_func_arg(parser);
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_COMMA(t)){
@@ -1446,8 +1481,11 @@ static list_t *parser_parse_func_args(parser_t *parser){
 static list_t *parser_parse_func_arg(parser_t *parser){
 
   list_t *new_lst;
+#ifdef __DEBUG__
+  printf("parser_parse_func_arg\n");
+#endif
 
-  new_lst = parser_parse_cexpr(parser);
+  new_lst = add_list(make_null(),parser_parse_cexpr(parser));
 
   return new_lst;
 }
@@ -1491,7 +1529,8 @@ static list_t *parser_parse_cast(parser_t *parser,list_t *cast_type){
 #endif
 
   sub_lst = parser_parse_unary_expr(parser);
-  new_lst = add_symbol(cast_type,CAST);
+  sub_lst = reverse(sub_lst);
+  new_lst = add_symbol(reverse(cast_type),CAST);
   new_lst = concat(new_lst,sub_lst);
   new_lst = add_list(make_null(),new_lst);
 
@@ -1554,7 +1593,7 @@ static list_t *parser_parse_dcl(parser_t *parser){
   }
 
   lexer_put_token(PARSER_GET_LEX(parser),t);
-  new_lst = concat(new_lst,parser_parse_dirdcl(parser));
+  new_lst = concat(parser_parse_dirdcl(parser),new_lst);
   
   return new_lst;
 }
@@ -1564,6 +1603,9 @@ static list_t *parser_parse_dirdcl(parser_t *parser){
   list_t *new_lst;
   token_t *t;
   
+#ifdef __DEBUG__
+  printf("parser_parse_dirdcl\n");
+#endif
   new_lst = make_null();
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_LETTER(t)){
@@ -1574,18 +1616,33 @@ static list_t *parser_parse_dirdcl(parser_t *parser){
     if(!IS_RPAREN(t)){
       
     }
-    new_lst = add_list(make_null(),new_lst);
   } else {
     lexer_put_token(PARSER_GET_LEX(parser),t);    
   }
+
+  new_lst = concat(new_lst,parser_parse_subdirdcl(parser));
   
+  return new_lst;
+}
+
+static list_t *parser_parse_subdirdcl(parser_t *parser){
+
+  list_t *new_lst;
+  token_t *t;
+#ifdef __DEBUG__
+  printf("parser_parse_subdirdcl\n");
+#endif
+
+  new_lst = make_null();
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_LBRACKET(t)){
     new_lst = concat(new_lst,parser_parse_array(parser));
-    new_lst = concat(new_lst,parser_parse_dirdcl(parser));
-    new_lst = add_list(make_null(),new_lst);
+	new_lst = concat(new_lst,parser_parse_subdirdcl(parser));
   } else if(IS_LPAREN(t)){
+	PARSER_SET_VAR_LST(parser,make_null());
     new_lst = concat(new_lst,add_list(make_null(),parser_parse_funcargs(parser,0)));
+	new_lst = add_symbol(new_lst,FUNC);
+	new_lst = concat(new_lst,parser_parse_subdirdcl(parser));
   } else {
     lexer_put_token(PARSER_GET_LEX(parser),t);
   }
@@ -1655,3 +1712,62 @@ static void record_obj_set(parser_t *parser,list_t *lst){
   return;
 }
 
+
+static bool_t has_array(list_t *lst){
+
+  if(IS_LIST(lst)){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+
+static bool_t is_func_decl(list_t *lst){
+
+  if(STRCMP(FUNC,car(lst))){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+
+static list_t *create_func(parser_t *parser,list_t *lst){
+
+  list_t *new_lst;
+#ifdef __DEBUG__
+  printf("create_func\n");
+#endif
+
+  LIST_SET_NEXT(lst,cdr(cdr(lst)));
+  new_lst = concat(add_symbol(make_null(),FUNC_DEF),lst);
+  create_ret_lst(parser,new_lst);
+  new_lst = concat(new_lst,add_list(make_null(),PARSER_GET_VAR_LST(parser)));
+  PARSER_SET_VAR_LST(parser,make_null());
+  new_lst = add_list(make_null(),new_lst);
+
+  return new_lst;
+}
+
+static list_t *create_ret_lst(parser_t *parser,list_t *lst){
+
+  list_t *new_lst;
+  list_t *ret_lst;
+  list_t *p;
+  list_t *q;
+
+#ifdef __DEBUG__
+  printf("create_ret_lst\n");
+#endif
+
+  ret_lst = cdr(cdr(cdr(lst)));
+  LIST_SET_NEXT(cdr(cdr(lst)),make_null());
+  for(p = ret_lst; !IS_LIST(cdr(p)); p = cdr(p)){
+	;
+  }
+
+  q = cdr(p);
+  LIST_SET_NEXT(p,make_null());
+  new_lst = concat(new_lst,add_list(q,ret_lst));
+
+  return new_lst;
+}
