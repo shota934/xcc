@@ -41,6 +41,8 @@ static void dump_body(list_t *lst){
   case STRING:
     fprintf(stdout,"%s ",(char *)CAR(lst));
     break;
+  case CHARACTER:
+    fprintf(stdout,"'%c' ",*(char *)CAR(lst));
   default:
     break;
   }
