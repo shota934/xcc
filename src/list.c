@@ -80,11 +80,14 @@ static void *car_obj(list_t *lst){
     obj = lst->obj.string.text;
     break;
   case DECIMAL:
-     obj = &(lst->obj.float_t.fval);
+	obj = lst->obj.float_t.fval;
     break;
   case OBJECT:
     obj = lst->obj.obj;
     break;
+  case CHARACTER:
+	obj = &lst->obj.charc.ch;
+	break;
   default:
     error_no_info("Unknonw list type %d\n",type);
     exit(1);
@@ -106,7 +109,7 @@ list_t *add_number(list_t *lst,int num){
   return new_lst;
 }
 
-list_t *add_float(list_t *lst,double fval){
+list_t *add_float(list_t *lst,string_t fval){
 
   list_t *new_lst;
   
@@ -128,6 +131,20 @@ list_t *add_symbol(list_t *lst,char *text){
   new_lst->obj.symbol.text = text;
   new_lst->obj.symbol.offset = 0;
   new_lst->obj.symbol.len = STRLEN(text);
+  new_lst->obj.symbol.src = NULL;
+  new_lst->obj.symbol.lineno = 0;
+
+  return new_lst;
+}
+
+list_t *add_char(list_t *lst,char *text){
+
+  list_t *new_lst;
+
+  new_lst = create_list();
+  new_lst->type = CHARACTER;
+  new_lst->next = lst;
+  new_lst->obj.charc.ch = *(text + 1);
 
   return new_lst;
 }
