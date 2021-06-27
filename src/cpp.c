@@ -45,7 +45,7 @@
 #define IS_MACRO_OBJ(m)  m->type == MACRO_OBJECT
 
 static void read_include(compile_info_t *com,lexer_t *lexer);
-static void read_next_include(compile_info_t *com,lexer_t *lexer);
+static void read_next_include(compile_info_t *com,lexer_t *lexer,source_info_t *src_info);
 static void read_define(compile_info_t *com,lexer_t *lexer);
 static void read_define_macro_obj(compile_info_t *com,lexer_t *lexer,token_t *name,list_t *obj);
 static void read_define_func(compile_info_t *com,lexer_t *lexer,token_t *name);
@@ -71,9 +71,11 @@ static list_t *read_like_func_body(compile_info_t *com,lexer_t *lexer);
 static void expand_macro(compile_info_t *com,lexer_t *lexer,macro_t *macro);
 static void expand_like_func_macro(lexer_t *lexer,macro_t *macro);
 static list_t *get_body(lexer_t *lexer);
+static list_t *get_nest_body(lexer_t *lexer,list_t *token_lst);
 static void bind(env_t *env,list_t *args,list_t *vals);
 static void apply_macro_expansion(list_t *token_seqs,env_t *env,list_t *body);
 static void read_cond_directive(compile_info_t *com,lexer_t *lexer,int flag);
+static void read_cond_directives(compile_info_t *com,lexer_t *lexer,token_t *t);
 static void read_if_directive(compile_info_t *com,lexer_t *lexer,token_t *t,int not_flag);
 static list_t *copy_macro_lst(list_t *lst);
 
@@ -107,59 +109,63 @@ static list_t *eval_macro(macro_t *macro);
 static list_t *eval_op(list_t *expr,map_t *env);
 static list_t *eval_bin_op(list_t *expr,map_t *env);
 static list_t *eval_func_call(list_t *expr,map_t *env);
+static list_t *eval_ternary(list_t *expr,map_t *env);
 
 
-void cpreprocess(compile_info_t *com,lexer_t *lexer){
-  
-  source_info_t *src_info;
+void cpreprocess(compile_info_t *com,lexer_t *lexer,source_info_t *srcinfo){
+
+  token_t *t;
   
 #ifdef __DEBUG__
   printf("cpreprocess\n");
 #endif
 
-  src_info = COM_GET_SRC_INFO(com);
-  add_src_info_lst(com,src_info);
-  push(COM_GET_STACK(com),src_info);
+  push(COM_GET_STACK(com),srcinfo);
+  add_src_info_lst(com,srcinfo);
   cprereaddefs(com,lexer,FALSE,TRUE);
-  save_lexinfo(src_info,lexer);
+
+  t = scan(lexer);
+  if(!IS_EOT(t)){
+	printf("Error\n");
+	exit(1);
+  }
+
+  lexer->lst = concat(lexer->lst,cons(make_null(),t));
+  save_lexinfo(srcinfo,lexer);
+  com->token_lst = concat(com->token_lst,SOURCE_INFO_GET_LST(srcinfo));
+
   pop(COM_GET_STACK(com));
+
+  ASSERT(empty(COM_GET_STACK(com)));
 
 #ifdef __CPP__DEBUG__
   printf("================================\n");
   dump_map(COM_GET_MACROS(com));
   printf("================================\n");
 #endif
-  
+
   return;
 }
 
 void dump_token_sequences(compile_info_t *com){
 
   list_t *p;
-  list_t *token_lst;
-  source_info_t *src_info;
+  source_info_t *srcinfo;
   
-  p = COM_GET_SRC_INFO_LST(com);
-  while(TRUE){
-    
-    if(IS_NULL_LIST(p)){
-      break;
-    }
-    
-    src_info = car(p);  
-    token_lst = SOURCE_INFO_GET_LST(src_info);
-    dump_token_sequence(token_lst);
-    p = cdr(p);
-  }
+#ifdef __DEBUG__
+  printf("dump_token_sequences\n");
+#endif
+
+  dump_token_sequence(com->token_lst);
   
   return;
 }
 
 void dump_token_lst(list_t *lst){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("dump_token_lst\n");
-  #endif
+#endif
 
   dump_token_sequence(lst);
 
@@ -224,22 +230,23 @@ static void cprereaddefs(compile_info_t *com,lexer_t *lexer,bool_t flag,bool_t p
 #ifdef __DEBUG__
   printf("cprereaddefs\n");
 #endif
+
   while(TRUE){
-    t = scan(lexer);
+	t = scan(lexer);
     if(IS_SHAPE(t)){
       cprereaddef(com,lexer,flag,predic);
-    } else if(IS_NEWLINE(t)){
-      lexer->lst = concat(lexer->lst,cons(make_null(),t));
-    } else {
-      
+	} else {
       if(is_terminate_symbol(t) && flag){
 		put_token(lexer,t);
 		return;
       } else if(IS_EOT(t)){
-		lexer->lst = concat(lexer->lst,cons(make_null(),t));
 		return;
-      }
-      
+	  }
+
+	  if(!predic){
+		continue;
+	  }
+
       if(!IS_LETTER(t)){
 		lexer->lst = concat(lexer->lst,cons(make_null(),t));
       } else {
@@ -278,7 +285,6 @@ static void cprereaddef(compile_info_t *com,lexer_t *lexer,bool_t flag,bool_t pr
   t = scan(lexer);
   if(IS_INCLUDE(t)){
     read_include(com,lexer);
-    read_next_include(com,lexer);
   } else if(IS_DEFINE(t)){
     read_define(com,lexer);
   } else if(IS_IFDEF(t)){
@@ -325,12 +331,12 @@ static void read_include(compile_info_t *com,lexer_t *lexer){
     for(p = COM_GET_STD_PATH_LST(com); IS_NOT_NULL_LIST(p); p = cdr(p)){
       path = (string_t)car(p);
       name = read_header_path(com,path,file_name);
-      file = file_create();
+	  file = file_create();
       FILE_SET_NAME(file,name);
       FILE_SET_MODE(file,"r");
       if(file_open(file)){
-	flag = TRUE;
-	break;
+		flag = TRUE;
+		break;
       }
       fre(file);
       fre(name);
@@ -340,7 +346,6 @@ static void read_include(compile_info_t *com,lexer_t *lexer){
       error_no_info("Not found file [%s]\n",file_name);
       exit(1);
     }
-
   } else {
     file = file_create();
     FILE_SET_NAME(file,file_name);
@@ -349,45 +354,46 @@ static void read_include(compile_info_t *com,lexer_t *lexer){
       error_no_info("Not found file [%s]\n",file_name);
     }
   }
-
-  stack = COM_GET_STACK(com);
   src_info = create_source_info(file,NULL);
-  push(stack,src_info);
-  add_src_info_lst(com,src_info);
-  
+  read_next_include(com,lexer,src_info);
+
   return;
 }
 
-static void read_next_include(compile_info_t *com,lexer_t *lexer){
 
-  string_t src;
-  source_info_t *srcinfo;
-  source_info_t *pre_srcinfo;
+static void read_next_include(compile_info_t *com,lexer_t *lexer,source_info_t *srcinfo){
+
+  source_info_t *cur_srcinfo;
+  stack_ty *stack;
   file_t *file;
-  
+  string_t src;
+
 #ifdef __DEBUG__
   printf("read_next_include\n");
 #endif
 
-  pre_srcinfo = COM_GET_SRC_INFO(com);
-  save_lexinfo(pre_srcinfo,lexer);
+  add_src_info_lst(com,srcinfo);
+  stack = COM_GET_STACK(com);
   
-  srcinfo = pop(COM_GET_STACK(com));
+  cur_srcinfo = top(stack);
+  save_lexinfo(cur_srcinfo,lexer);
+  com->token_lst = concat(com->token_lst,SOURCE_INFO_GET_LST(cur_srcinfo));
 
+
+  src_info_init_lst(cur_srcinfo);
+
+  push(stack,srcinfo);
+
+  load_lexinfo(srcinfo,lexer);
   file = SOURCE_INFO_GET_FILE(srcinfo);
-  COM_SET_SRC_INFO(com,srcinfo);
   src = file_read_as_string(SOURCE_INFO_GET_FILE(srcinfo));
   lexer_set_src(lexer,src);
-  LEXER_SET_NAME(lexer,file);
-  
   cprereaddefs(com,lexer,FALSE,TRUE);
-  
-  save_lexinfo(COM_GET_SRC_INFO(com),lexer);
-  COM_SET_SRC_INFO(com,pre_srcinfo);
-  load_lexinfo(COM_GET_SRC_INFO(com),lexer);
+  save_lexinfo(srcinfo,lexer);
+  com->token_lst = concat(com->token_lst,SOURCE_INFO_GET_LST(srcinfo));
 
-  srcinfo = COM_GET_SRC_INFO(com);
-  file = SOURCE_INFO_GET_FILE(srcinfo);
+  pop(stack);
+  load_lexinfo(cur_srcinfo,lexer);
 
   return;
 }
@@ -471,7 +477,7 @@ static void read_define_macro_obj(compile_info_t *com,lexer_t *lexer,token_t *na
   MACRO_SET_OBJ(macro,val);
 
   map_put(COM_GET_MACROS(com),TOKEN_GET_STR(name),macro);
-  
+
   return;
 }
 
@@ -650,6 +656,7 @@ static void read_undef(compile_info_t *com,lexer_t *lexer){
 
   t = scan(lexer);
 
+  string_t tk = TOKEN_GET_STR(t);
   map_remove(COM_GET_MACROS(com),TOKEN_GET_STR(t));
   
   t = scan(lexer);
@@ -712,12 +719,6 @@ static bool_t read_constant(compile_info_t *com,lexer_t *lexer){
 #endif
 
   expr = read_constant_newline(com,lexer);
-#ifdef __CPP__DEBUG__
-  printf("-------------------------\n");
-  printf("line no : [%d]\n",LEXER_GET_LINE_NO(lexer));
-  dump_ast(expr);
-  printf("-------------------------\n");
-#endif
   val = eval(expr,COM_GET_MACROS(com));
   if(*(int *)car(val)){
     ret = TRUE;
@@ -748,11 +749,6 @@ static list_t *read_constant_newline(compile_info_t *com,lexer_t *lexer){
   LEXER_SET_LST(lexer,token_seaquence);
   
   expr = parser_constant_texts(parser);
-
-#ifdef __DEBUG__
-  dump_ast(expr);
-#endif
-  
 
   LEXER_SET_LST(lexer,src_toks);
   
@@ -912,15 +908,42 @@ static list_t *get_body(lexer_t *lexer){
       new_lst = concat(new_lst,add_list(make_null(),token_lst));
       token_lst = make_null();
       break;
-    }
-
-    if(IS_COMMA(t)){
+    } else if(IS_COMMA(t)){
       new_lst = concat(new_lst,add_list(make_null(),token_lst));
       token_lst = make_null();
       continue;
-    }
+    } else if(IS_LPAREN(t)){
+	  token_lst = concat(token_lst,cons(make_null(),t));
+	  get_nest_body(lexer,token_lst);
+	}
     
     token_lst = concat(token_lst,cons(make_null(),t));
+  }
+
+  return new_lst;
+}
+
+static list_t *get_nest_body(lexer_t *lexer,list_t *token_lst){
+
+  list_t *new_lst;
+  token_t *t;
+
+#ifdef __DEBUG__
+  printf("get_nest_body\n");
+#endif
+
+  new_lst = make_null();
+  while(TRUE){
+	t = scan(lexer);
+	if(IS_LPAREN(t)){
+	  return get_nest_body(lexer,token_lst);
+	} else if(IS_RPAREN(t)){
+	  token_lst = concat(token_lst,cons(make_null(),t));
+	  break;
+	} else if(IS_EOT(t)){
+	  break;
+	}
+	token_lst = concat(token_lst,cons(make_null(),t));
   }
 
   return new_lst;
@@ -1019,8 +1042,8 @@ static void read_cond_directive(compile_info_t *com,lexer_t *lexer,int flag){
     }
 
     if(flag){
-      lexer->lst = concat(lexer->lst,cons(make_null(),t));
-    }
+	  read_cond_directives(com,lexer,t);
+	}
   }
   
   t = scan(lexer);
@@ -1034,6 +1057,26 @@ static void read_cond_directive(compile_info_t *com,lexer_t *lexer,int flag){
     read_cond_directive(com,lexer,!flag);
   }
   
+  return;
+}
+
+static void read_cond_directives(compile_info_t *com,lexer_t *lexer,token_t *t){
+
+#ifdef __DEBUG__
+  printf("read_cond_directives\n");
+#endif
+
+  if(!IS_LETTER(t)){
+	lexer->lst = concat(lexer->lst,cons(make_null(),t));
+  } else {
+	macro_t *macro = map_get(COM_GET_MACROS(com),TOKEN_GET_STR(t));
+	if(macro){
+	  expand_macro(com,lexer,macro);
+	} else {
+	  lexer->lst = concat(lexer->lst,cons(make_null(),t));
+	}
+  }
+
   return;
 }
 
@@ -1053,6 +1096,7 @@ static list_t *copy_macro_lst(list_t *lst){
 static void dump_lst(list_t *lst){
   
   for(list_t *p = lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
+	
     if(IS_LIST(p)){
       printf("[ ");
       dump_lst(car(p));
@@ -1071,9 +1115,9 @@ static void dump_lst(list_t *lst){
 
 static void dump_macro(macro_t *macro){
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("dump_macro\n");
-  #endif
+#endif
 
   switch(MACRO_GET_TYPE(macro)){
   case MACRO_OBJECT:
@@ -1123,9 +1167,10 @@ static void dump_token_sequence(list_t  *lst){
 	  continue;
 	}
     printf(" %s ",TOKEN_GET_STR(t));
+#ifdef __CPP__DEBUG__
+	printf("\n%s\n",TOKEN_GET_NAME(t));
+#endif
   }
-  
-  return;
 }
 
 
@@ -1189,14 +1234,14 @@ static void skip_until_newline(lexer_t *lexer){
     t = scan(lexer);
     if(IS_IF(t) || IS_IFDEF(t) || IS_IFNDEF(t)){
       if(flag){
-	put_token(lexer,t);
-	skip_until_newline(lexer);
+		put_token(lexer,t);
+		skip_until_newline(lexer);
       } else {
-	flag = TRUE;
+		flag = TRUE;
       }
     }
     
-    if(IS_NEWLINE(t) && pre_token){
+	if(IS_NEWLINE(t) && pre_token){
       pre_token = NULL;
       continue;
     } else if(IS_NEWLINE(t) && !pre_token && !flag){
@@ -1239,7 +1284,7 @@ static list_t *replace_macro(compile_info_t *com,list_t *lst){
     macro = map_get(COM_GET_MACROS(com),TOKEN_GET_STR(t));
     if(macro){
       if(MACRO_OBJECT == MACRO_GET_TYPE(macro)){
-	q = concat(q,copy_macro_lst(MACRO_GET_BODY(macro)));
+		q = concat(q,copy_macro_lst(MACRO_GET_BODY(macro)));
       }
     } else {
       q = concat(q,cons(make_null(),car(p)));
@@ -1336,6 +1381,8 @@ static list_t *eval_symbol(list_t *expr,map_t *env){
     ret = eval_bin_op(expr,env);
   } else if(STRCMP(symbol,FUNC_CALL)){
     ret = eval_func_call(expr,env);
+  } else if(STRCMP(symbol,TERNARY)){
+	ret = eval_ternary(expr,env);
   } else {
     ret = eval_macro_obj(env,symbol);
   }
@@ -1529,12 +1576,34 @@ static list_t *eval_func_call(list_t *expr,map_t *env){
 
   list_t *val;
 
-  #ifdef __DEBUG__
+#ifdef __DEBUG__
   printf("eval_func_call\n");
-  #endif
+#endif
 
   val = make_null();
   val = add_number(val,FALSE);
   
+  return val;
+}
+
+static list_t *eval_ternary(list_t *expr,map_t *env){
+
+  list_t *val;
+  list_t *cond;
+  int ret;
+
+#ifdef __DEBUG__
+  printf("eval_ternary\n");
+#endif
+
+  cond = eval_operand(car(cdr(expr)),env);
+  ret = *(int *)car(cond);
+
+  if(ret){
+	val = eval_operand(car(cdr(cdr(expr))),env);
+  } else {
+	val = eval_operand(car(cdr(cdr(cdr(expr)))),env);
+  }
+
   return val;
 }

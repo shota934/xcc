@@ -11,7 +11,7 @@
 #include "com.h"
 
 source_info_t *create_source_info();
-void cpreprocess(compile_info_t *com,lexer_t *lexer);
+void cpreprocess(compile_info_t *com,lexer_t *lexer,source_info_t *srcinfo);
 void dump_token_sequences(compile_info_t *com);
 void dump_token_lst(list_t *lst);
 
