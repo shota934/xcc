@@ -45,7 +45,7 @@ void *map_get(map_t *map,string_t key){
 
   list_t *lst;
   int hash_val;
-  
+
   hash_val = hash(key);
   lst = map->objs[hash_val];
   while(TRUE){
@@ -67,7 +67,7 @@ void map_remove(map_t *map,string_t key){
   list_t *lst;
   list_t *pre;
   int hash_val;
-  
+
   hash_val = hash(key);
   lst = map->objs[hash_val];
   pre = make_null();
@@ -77,8 +77,12 @@ void map_remove(map_t *map,string_t key){
     }
     
     if(STRCMP(car(car(lst)),key)){
-      pre->next = cdr(lst);
-      map->size--;
+	  if(IS_NULL_LIST(pre)){
+		map->objs[hash_val] = cdr(lst);
+	  } else {
+		pre->next = cdr(lst);
+	  }
+	  map->size--;
       break;
     }
     pre = lst;
