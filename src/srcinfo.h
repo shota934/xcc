@@ -26,5 +26,7 @@ struct source_info_t {
 };
 
 source_info_t *create_source_info(file_t *file,token_t *tk);
+void src_info_init_lst(source_info_t *src_info);
 void load_lexinfo(source_info_t *src_info,lexer_t *lex);
 void save_lexinfo(source_info_t *src_info,lexer_t *lex);
+void dump_src_info(source_info_t *src_info);
