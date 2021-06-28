@@ -8,22 +8,23 @@
 #include "type.h"
 #include "list.h"
 #include "obj.h"
+#include "map.h"
 
 #define COMPOUND_TYPE_SET_TYPE(c,t)     c->type = t;
-#define COMPOUND_TYPE_SET_MEMBERS(c,m)  c->members = m
 #define COMPOUND_TYPE_SET_SIZE(c,s)     c->size = s
+#define COMPOUND_TYPE_SET_ENV(c,e)      c->env = e
 
 #define COMPOUND_TYPE_GET_TYPE(c,t)     c->type;
-#define COMPOUND_TYPE_GET_MEMBERS(c)    c->members
 #define COMPOUND_TYPE_GET_SIZE(c)       c->size
+#define COMPOUND_TYPE_GET_ENV(c)        c->env
 
 struct compound_def_t {
   object_t obj_type;
   compound_type_t type;
-  list_t *members;
   int size;
+  env_t *env;
 };
 
-compound_def_t *create_compound_type_def();
+compound_def_t *create_compound_type_def(type_type_t type,scope_t scope);
 
 #endif
