@@ -17,9 +17,10 @@
 #include "cpp.h"
 #include "com.h"
 #include "srcinfo.h"
+#include "sema.h"
 
 static void compile(opt_info_t *optinfo,string_t name);
-static void cgen(list_t *ast,char *name);
+static void cgen(list_t *ast,file_t  *file,string_t name,set_t *set);
 static void show_version();
 static void show_help();
 static void parse_opt(opt_info_t *optinfo,int argc,char *argv[]);
@@ -37,6 +38,8 @@ static void compile(opt_info_t *optinfo,string_t name){
   stack_ty *stack;
   lexer_t *lexer;
   compile_info_t *com;
+  source_info_t *srcinfo;
+  sema_t *sema;
 
 #ifdef __DEBUG__
   printf("compile\n");
@@ -57,9 +60,11 @@ static void compile(opt_info_t *optinfo,string_t name){
   PARSER_SET_LEX(parser,lexer);
   parser_set_src(parser,file_read_as_string(file));
   LEXER_SET_NAME(lexer,file);
-  
-  COM_SET_SRC_INFO(com,create_source_info(file,NULL));
-  cpreprocess(com,PARSER_GET_LEX(parser));
+
+  srcinfo = create_source_info(file,NULL);
+
+  cpreprocess(com,PARSER_GET_LEX(parser),srcinfo);
+
   if(IS_ONLY_PREPROCESS(optinfo)){
     dump_token_sequences(com);
     return;
@@ -71,36 +76,44 @@ static void compile(opt_info_t *optinfo,string_t name){
     return;
   }
 
+  sema = create_sema(name);
+  if(!check(sema,ast)){
+	return;
+  }
+
   if(IS_ONLY_GENASSEMBLER(optinfo)){
     char *output_name = make_outputfile(name,OUTPUT_FILE_EXTENSION);
-    cgen(ast,output_name);
+    cgen(ast,file,output_name,SEMA_GET_SET(sema));
     return;
   }
   
   if(IS_ONLY_GEN_OBJFILE(optinfo)){
     return;
   }
-  
-  cgen(ast,DEFAULT_OUTPUT_FILE);
+
+
+  cgen(ast,file,DEFAULT_OUTPUT_FILE,SEMA_GET_SET(sema));
   
   return;
 }
 
-static void cgen(list_t *ast,char *name){
+static void cgen(list_t *ast,file_t  *file,string_t name,set_t *set){
 
-  gen_info_t *ei;
+  gen_info_t *gi;
   env_t *env;
   file_t *output_file;
 #ifdef __DEBUG__
   printf("cgen\n");
 #endif
 
-  ei = create_gen_info();
+  gi = create_gen_info();
+  GEN_INFO_SET_SET(gi,set);
   env = make_env();
   output_file = create_outfile(name);
-  GEN_INF_SET_FILE(ei,output_file);
+  GEN_INFO_SET_SRC(gi,file);
+  GEN_INF_SET_FILE(gi,output_file);
   file_open(output_file);
-  gen(ei,env,ast);
+  gen(gi,env,ast);
   file_close(output_file);
   fre(output_file);
   
@@ -175,27 +188,22 @@ static void parse_opt(opt_info_t *optinfo,int argc,char *argv[]){
 static list_t *parse_src(compile_info_t *com,parser_t *parser){
   
   list_t *ast;
-  stack_ty *stack;
-  source_info_t *src_info;
-  lexer_t *lexer;
-  file_t *file;
   list_t *p;
+  source_info_t *srcinfo;
   
+#ifdef __DEBUG__
+  printf("parse_src\n");
+#endif
+
   ast = make_null();
   p = COM_GET_SRC_INFO_LST(com);
-  while(TRUE){
-    if(IS_NULL_LIST(p)){
-      break;
-    }
-    
-    src_info = car(p);
-    file = SOURCE_INFO_GET_FILE(src_info);
-    load_lexinfo(src_info,PARSER_GET_LEX(parser));
-    ast = concat(ast,parser_parse(parser));
-    file_close(SOURCE_INFO_GET_FILE(src_info));
-    p = cdr(p);
-  }
   
+  srcinfo = car(p);
+  load_lexinfo(srcinfo,PARSER_GET_LEX(parser));
+
+  LEXER_SET_LST(PARSER_GET_LEX(parser),com->token_lst);
+  ast = parser_parse(parser);
+
   return ast;
 }
 
