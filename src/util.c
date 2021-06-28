@@ -11,18 +11,10 @@
 #include "common.h"
 #include "inst.inc"
 #include "dump.h"
+#include "symbol.h"
+#include "env.h"
 
-char* make_label(){
-  
-  static int c = 0;
-  char buf[256];
-  char *str;
-  sprintf(buf,".L%d",c++);
-  str = mem(strlen(buf) + 1);
-  strcpy(str,buf);
-
-  return str;
-}
+static bool_t is_func_qualifier(list_t *lst);
 
 int hash(char *name){
 
@@ -42,25 +34,22 @@ bool_t is_decimaltype(type_t type){
   return (TYPE_FLOAT == type) || (TYPE_DOUBLE == type);
 }
 
-bool_t is_inttype(type_t type){
+bool_t is_inttype(list_t *lst){
 
-  int flag;
+  string_t type;
 #ifdef __DEBUG__
   printf("is_inttype\n");
 #endif
-  switch(type){
-  case TYPE_CHAR:
-  case TYPE_INT:
-  case TYPE_SHORT:
-  case TYPE_LONG:
-    flag = TRUE;
-    break;
-  default:
-    flag = FALSE;
-    break;
+
+  type = car(lst);
+  if(STRCMP(type,INT) ||
+	 STRCMP(type,LONG) ||
+	 STRCMP(type,CHAR) ||
+	 STRCMP(type,SHORT)){
+	return TRUE;
   }
 
-  return flag;
+  return FALSE;
 }
 
 bool_t  is_function(type_t type){
@@ -71,17 +60,14 @@ type_t util_get_type(list_t *lst){
   return (*(type_t *)car(cdr(cdr(lst))));
 }
 
-bool_t is_float(symbol_t *sym){
+bool_t is_float(list_t  *lst){
 
-  if(!sym){
-    return FALSE;
-  }
+  string_t type;
 
-  if((SYMBOL_GET_TYPE(sym) == TYPE_FLOAT)
-     || (SYMBOL_GET_TYPE(sym) == TYPE_DOUBLE)){
-    return TRUE;
-  } else {
-    return FALSE;
+  type = car(lst);
+  if(STRCMP(type,FLOAT)
+	 || STRCMP(type,DOUBLE)){
+	return TRUE;
   }
 
   return FALSE;
@@ -141,6 +127,24 @@ bool_t is_address(list_t *lst){
   return STRCMP(car(lst),"&");
 }
 
+bool_t is_struct_ref(list_t *lst){
+
+  if(!IS_SYMBOL(lst)){
+    return FALSE;
+  }
+
+  return STRCMP(car(lst),"->");
+}
+
+bool_t is_struct_decl(list_t *lst){
+
+  if(!IS_SYMBOL(lst)){
+    return FALSE;
+  }
+
+  return STRCMP(car(lst),STRUCT_DECL);
+}
+
 bool_t is_deref(list_t *lst){
 
   if(!IS_SYMBOL(lst)){
@@ -158,8 +162,42 @@ bool_t is_function_pointer(list_t *lst){
   return (3 <= length_of_list(lst)) && (IS_LIST(tail(lst)));
 }
 
+bool_t is_func(object_t *obj){
+  return obj->type == TYPE_FUNCTION;
+}
+
+bool_t is_symbol(object_t *obj){
+  return obj->type == TYPE_SYMBOL;
+}
+
 bool_t is_array(list_t *lst){
-  return (2 <= length_of_list(lst)) && (IS_LIST(cdr(lst)));
+
+  string_t symbol;
+  if(IS_SYMBOL(lst)){
+	symbol = car(lst);
+	if(STRCMP(symbol,ARRAY)){
+	  return TRUE;
+	}
+  }
+
+  return FALSE;
+}
+
+bool_t is_value(list_t *lst){
+  return IS_LIST(lst);
+}
+
+bool_t is_name(list_t *lst){
+
+  if(!IS_SYMBOL(lst)){
+	return FALSE;
+  }
+
+  if(is_array(lst) || is_pointer(lst) || is_struct_ref(lst)){
+	return FALSE;
+  } else {
+	return TRUE;
+  }
 }
 
 kind_t select_type(list_t *lst){
@@ -184,61 +222,20 @@ kind_t select_type(list_t *lst){
   return 0 < cnt ? KIND_POINTER : KIND_VARIABLE;
 }
 
-type_t gen_type(list_t *lst){
-  
-  type_t type;
-  
-  if(STRCMP(INT,car(lst))){
-    type = TYPE_INT;
-  } else if(STRCMP(CHAR,car(lst))){
-    type = TYPE_CHAR;
-  } else if(STRCMP(FLOAT,car(lst))){
-    type = TYPE_FLOAT;
-  } else if(STRCMP(DOUBLE,car(lst))){
-    type = TYPE_DOUBLE;
-  } else if(STRCMP(SHORT,car(lst))){
-    type = TYPE_SHORT;
-  } else if(STRCMP(LONG,car(lst))){
-    type = TYPE_LONG;
-  } else if(STRCMP(STRUCT,car(lst))){
-    type = TYPE_STRUCT;
-  } else {
-    type = TYPE_UNDEFINE;
-  }
-  
-  return type;
-}
-
 int calc_align(int n,int m){
   int rem = n % m;
   return (rem == 0) ? n : n - rem + m;
 }
 
-bool_t is_static(list_t *lst){
-  
-  if(!IS_INTEGER(lst)){
-    return FALSE;
-  }
-  
-  return INTERNAL == *(access_type *)car(lst);
-}
-
 bool_t is_extern(list_t *lst){
-  
-  if(!IS_INTEGER(lst)){
-    return FALSE;
+
+  string_t name;
+  name = (string_t)car(lst);
+  if(STRCMP(EXTERN,name)){
+	return TRUE;
   }
 
-  return EXTERNAL == *(access_type *)car(lst);
-}
-
-bool_t is_typdef(list_t *lst){
-  
-  if(!IS_INTEGER(lst)){
-    return FALSE;
-  }
-  
-  return (TYPEDEF == *(access_type *)car(lst));
+  return FALSE;
 }
 
 int convert_hex_to_int(char *hex){
@@ -323,3 +320,133 @@ bool_t is_compound_alloc_type(list_t *lst){
 
   return FALSE;
 }
+
+bool_t is_qualifier(list_t *lst){
+
+  string_t name;
+
+  name = car(lst);
+  if(STRCMP(STATIC,name)
+	 || STRCMP(EXTERN,name)){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+
+list_t *get_func_name(list_t *lst){
+
+  list_t *p;
+  string_t name;
+  
+#ifdef __DEBUG__
+  printf("get_func_name\n");
+#endif
+
+  p = lst;
+  while(IS_NOT_NULL_LIST(p)){
+	if(IS_SYMBOL(p)
+	   && !is_qualifier(p)
+	   && !is_func_qualifier(p)){
+	  break;
+	}
+	p = cdr(p);
+  }
+
+  if(IS_NULL_LIST(p)){
+	exit(1);
+  }
+
+  return p;
+}
+
+static bool_t is_func_qualifier(list_t *lst){
+
+  string_t name;
+  
+  name = car(lst);
+  if(STRCMP(FUNC_DEF,name)
+	 || STRCMP(FUNC_DECL,name)){
+	return TRUE;
+  }
+  
+  return FALSE;
+  
+}
+
+symbol_t *lookup_member(env_t *env,string_t name){
+
+  symbol_t *sym;
+  
+#ifdef __DEBUG__
+  printf("lookup_member\n");
+#endif
+
+  sym = lookup_obj(env,name);
+  if(!sym){
+	exit(1);
+  }
+
+  return sym;
+}
+
+type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
+
+  string_t name;
+
+#ifdef __DEBUG__
+  printf("conv_type\n");
+#endif
+
+  if(IS_NULL_LIST(type_lst)){
+	exit(1);
+  } else if(IS_INTEGER(type_lst)){
+	return conv_type(env,cdr(type_lst),lst);
+  }
+  
+  name = car(type_lst);
+  if(STRCMP(name,CHAR)){
+	return TYPE_CHAR;
+  } else if(STRCMP(name,SHORT)){
+	return TYPE_SHORT;
+  } else if(STRCMP(name,INT)){
+	return TYPE_INT;
+  } else if(STRCMP(name,LONG)){
+	return TYPE_LONG;
+  } else if(STRCMP(name,UNSIGNED)){
+	return TYPE_UNSIGNED;
+  } else if(STRCMP(name,SIGNED)){
+	return TYPE_SIGNED;
+  } else if(STRCMP(name,VOID)){
+	return TYPE_VOID;
+  } else if(STRCMP(name,POINTER)){
+	return TYPE_POINTER;
+  } else if(STRCMP(name,ARRAY)){
+	if(IS_NULL_LIST(lst)){
+	  return TYPE_ARRAY;
+	}
+	return conv_type(env,cdr(type_lst),lst);
+  } else {
+	symbol_t *sym;
+	sym = lookup_obj(env,name);
+	if(!sym){
+	  exit(1);
+	}
+	
+	switch(SYMBOL_GET_SYM_TYPE(sym)){
+	case TYPE_ENUM:
+	  return SYMBOL_GET_SYM_TYPE(sym);
+	  break;
+	case TYPE_TYPE:
+	  return conv_type(env,SYMBOL_GET_TYPE_LST(sym),lst);
+	  break;
+	default:
+	  printf("name : %s\n",name);
+	  printf("TYPE : %d\n",SYMBOL_GET_SYM_TYPE(sym));
+	  break;
+	}
+  }
+  exit(1);
+}
+
+
