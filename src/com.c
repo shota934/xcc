@@ -19,7 +19,8 @@ static macro_t *create_macro(list_t *obj);
 compile_info_t *create_compile_info(){
   
   compile_info_t *compile_info = mem(sizeof(compile_info_t));
-  
+
+  compile_info->token_lst = make_null();
   compile_info->src_info_lst = make_null();
   compile_info->stack = create_stack();
   compile_info->src_info = NULL;
@@ -39,12 +40,13 @@ static void add_path(compile_info_t *compile_info){
 
   std_path_lst = compile_info->std_path_lst;
 
+  std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_XCC));
   std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_PATH));
 #ifdef __LINUX__
   std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_LINUX_PATH));
   std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_GNU_LINUX_PATH));
+  std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_GNU_LINUX_LIB_PATH));
 #endif
-  std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_XCC));
   
   compile_info->std_path_lst = std_path_lst;
   

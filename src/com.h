@@ -16,6 +16,7 @@
 #define COM_GET_STD_PATH_LST(c) c->std_path_lst
 
 struct compile_info_t {
+  list_t *token_lst;
   list_t *src_info_lst;
   stack_ty *stack;
   source_info_t *src_info;
