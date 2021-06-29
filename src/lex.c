@@ -86,6 +86,8 @@ token_t keywords[] = {
   {TOKEN_EXTERN,"extern"},
   {TOKEN_STATIC,"static"},
   {TOKEN_CONST,"const"},
+  {TOKEN_RESTRICT,"restrict"},
+  {TOKEN_VOLATILE,"volatile"},
   {TOKEN_IFDEF,"ifdef"}, 
   {TOKEN_IFNDEF,"ifndef"},
   {TOKEN_ELIF,"elif"},
@@ -110,7 +112,11 @@ token_t keywords[] = {
   {TOKEN_XOR,"^"},
   {TOKEN_BACK_SLASH,"\\"},
   {TOKEN_SIGNED,"signed"},
-  {TOKEN_UNSIGNED,"unsigned"}
+  {TOKEN_UNSIGNED,"unsigned"},
+  {TOKEN_MOD,"%"},
+  {TOKEN_QUESTION,"?"},
+  {TOKEN_INLINE,"inline"},
+  {TOKEN_ATTRIBUTE,"__attribute__"},
 };
 
 static char skip(lexer_t *lex);
@@ -124,6 +130,7 @@ static void lexer_put_ch(lexer_t *lex);
 
 static token_t *scan_letter(lexer_t *lex);
 static token_t *scan_number(lexer_t *lex,char ch);
+static token_t *scan_float(lexer_t *lex);
 static token_t *scan_string(lexer_t *lex);
 static token_t *scan_char(lexer_t *lex);
 static token_t *scan_operator(lexer_t *lex,char ch);
@@ -199,26 +206,26 @@ token_t *scan(lexer_t *lex){
     
       lex->str = lex->cur - 1;
       if(ch == NEW_LINE){
-	t = create_token(TOKEN_NEWLINE,"\n",lex->line_no,LEXER_GET_NAME(lex));
-	lex->line_no++;
+		t = create_token(TOKEN_NEWLINE,"\n",lex->line_no,LEXER_GET_NAME(lex));
+		lex->line_no++;
       } else if(ch == 0x00){
-	t = create_token(TOKEN_EOT,NULL,0,LEXER_GET_NAME(lex));
-	lex->t = t;
+		t = create_token(TOKEN_EOT,NULL,0,LEXER_GET_NAME(lex));
+		lex->t = t;
       } else if(IS_QUOTE(ch)){
-	t = scan_char(lex);
+		t = scan_char(lex);
       } else if(IS_DOUBLE_QUOTE(ch)){
-	t = scan_string(lex);
+		t = scan_string(lex);
       } else if(isdigit(ch)){
-	t = scan_number(lex,ch);
+		t = scan_number(lex,ch);
       } else if(isalpha(ch) || UNDER_BAR == ch){
-	t = scan_letter(lex);
+		t = scan_letter(lex);
       } else {
-	t = scan_operator(lex,ch);
+		t = scan_operator(lex,ch);
     }
       lex->str = NULL;
     }
   }
-  
+
   return t;
 }
 
@@ -284,23 +291,58 @@ static token_t *scan_number(lexer_t *lex,char ch){
     if(('X' == c) || ('x' == c)){
       type = TOKEN_HEX;
       while(is_hex(LEXER_GET_NEXT_CHAR(lex))){
-	;
+		;
       }
     } else {
       type = TOKEN_NUMBER;
     }
   } else {
-    c = LEXER_GET_NEXT_CHAR(lex);
-    type = TOKEN_NUMBER;
-    while(isdigit(c)){
-      c = LEXER_GET_NEXT_CHAR(lex);
+	type = TOKEN_NUMBER;
+	while(TRUE){
+	  c = LEXER_GET_NEXT_CHAR(lex);
+	  if(c == '.'){
+		return scan_float(lex);
+	  } else if(!isdigit(c)){
+		break;
+	  }
     }
   }
 
-  if((c == 'L') || (c == 'l')){
-    LEXER_GET_NEXT_CHAR(lex);
+  while(TRUE){
+	if((c == 'L') || (c == 'l')){
+	  c = LEXER_GET_NEXT_CHAR(lex);
+	  continue;
+	} else {
+	  break;
+	}
   }
   
+  end = lex->cur - 1;
+  len = end - lex->str;
+  text = mem(len + NULL_LEN);
+  memset(text,INIT_VALUE,len + NULL_LEN);
+  memcpy(text,lex->str,len);
+  lex->cur = end;
+
+  return create_token(type,text,TOKEN_GET_LINE_NO(lex),LEXER_GET_NAME(lex));
+}
+
+static token_t *scan_float(lexer_t *lex){
+
+  char *text;
+  char *end;
+  int len;
+  token_type_t type;
+  char c;
+
+  type = TOKEN_FLOAT;
+  while(TRUE){
+	c = LEXER_GET_NEXT_CHAR(lex);
+	if(!isdigit(c)){
+	  break;
+	}
+  }
+
   end = lex->cur - 1;
   len = end - lex->str;
   text = mem(len + NULL_LEN);
@@ -357,7 +399,7 @@ static token_t *scan_char(lexer_t *lex){
   memcpy(text,lex->str,len);
   lex->cur = end;
   
-  return create_token(TOKEN_CHAR,text,TOKEN_GET_LINE_NO(lex),LEXER_GET_NAME(lex));
+  return create_token(TOKEN_CHARACTER,text,TOKEN_GET_LINE_NO(lex),LEXER_GET_NAME(lex));
 }
 
 static token_t *scan_operator(lexer_t *lex,char c){
