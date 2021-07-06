@@ -44,5 +44,6 @@ bool_t is_qualifier(list_t *lst);
 list_t *get_func_name(list_t *lst);
 symbol_t *lookup_member(env_t *env,string_t name);
 type_t conv_type(env_t *env,list_t *type_lst,list_t *lst);
+int calc_array_size(list_t *lst);
 
 #endif

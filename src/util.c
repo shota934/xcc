@@ -450,3 +450,28 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 }
 
 
+int calc_array_size(list_t *lst){
+
+  list_t *p;
+  string_t name;
+  int size;
+
+#ifdef __DEBUG__
+  printf("calc_array_size\n");
+#endif
+
+  size = 0;
+  p = lst;
+  while(IS_NOT_NULL_LIST(p)){
+	name = car(p);
+	if(STRCMP(name,ARRAY)){
+	  p = cdr(p);
+	  size += *(integer_t *)car(p);
+	  p = cdr(p);
+	} else {
+	  exit(1);
+	}
+  }
+  
+  return size;
+}
