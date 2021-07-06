@@ -103,6 +103,7 @@ enum token_type_t {
   TOKEN_QUESTION,
   TOKEN_INLINE,
   TOKEN_ATTRIBUTE,
+  TOKEN_DO,
   TOKEN_EOT
 };
 
