@@ -472,6 +472,6 @@ int calc_array_size(list_t *lst){
 	  exit(1);
 	}
   }
-  
+
   return size;
 }
