@@ -137,6 +137,8 @@ static list_t *gen_pointer_op(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sy
 static list_t *gen_bin_cmp_op(gen_info_t *gi,env_t *env,list_t *lst);
 
 static list_t *gen_sizeof(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_sizeof_sym(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_sizeof_sym_sub(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym);
 static list_t *gen_sizeof_expr(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_type(gen_info_t *gi,env_t *env,list_t *lst);
 
@@ -159,8 +161,12 @@ static char *gen_cmp_inst(list_t *lst);
 static void gen_cmp(gen_info_t *gi);
 static void gen_je(gen_info_t *gi,char *label);
 static void gen_jmp(gen_info_t *gi,char *label);
+
+static list_t *gen_llabel(gen_info_t *gi,list_t *lst);
 static void gen_label(gen_info_t *gi,char *label);
+static list_t *gen_goto(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_if(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_do_while(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_while(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_for(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_switch(gen_info_t *gi,env_t *env,list_t *lst);
@@ -183,7 +189,6 @@ static char *choose_increment_op(list_t *lst);
 
 static void gen_enum_elements(gen_info_t *gi,env_t *env,list_t *lst,string_t enum_class);
 static void gen_enum_element(gen_info_t *gi,env_t *env,list_t *lst,string_t enum_class);
-static int gen_enum_element_value(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_enum_value(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_struct_ref(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_struct_decl(gen_info_t *gi,env_t *env,list_t *lst);
@@ -204,7 +209,7 @@ static void push_xmm(gen_info_t *gi,string_t reg);
 static void pop_xmm(gen_info_t *gi,string_t reg);
 
 static list_t *eval_type(gen_info_t *gi,env_t  *env,list_t *lst);
-static integer_t select_size(env_t  *env,list_t *lst,bool_t flg);
+static integer_t select_size(gen_info_t *gi,env_t  *env,list_t *lst,bool_t flg);
 static integer_t select_compound_type(env_t *env,list_t *lst);
 static string_t select_reg(integer_t size);
 static string_t select_reg_c(integer_t size);
@@ -219,18 +224,24 @@ static func_t *make_func(list_t *lst,scope_t scope);
 static list_t *gen_typedef(gen_info_t *gi,env_t *env,list_t *lst);
 static integer_t get_offset(list_t *lst);
 static char* make_label(gen_info_t *gi);
-static int get_size_of_array(list_t *lst,env_t *env);
+static int get_size_of_array(gen_info_t *gi,list_t *lst,env_t *env);
 
-static int calc(list_t *lst,env_t *env);
-static int calc_symbol(list_t *lst,env_t *env);
-static int calc_integer(list_t *lst,env_t *env);
-static int calc_add(list_t *lst,env_t *env);
-static int calc_sub(list_t *lst,env_t *env);
-static int calc_mul(list_t *lst,env_t *env);
-static int calc_div(list_t *lst,env_t *env);
-static int calc_mod(list_t *lst,env_t *env);
-static int calc_sizeof(list_t *lst,env_t *env);
-static int calc_type(list_t *lst,env_t *env);
+static int calc(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_symbol(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_integer(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_add(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_sub(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_mul(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_div(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_mod(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_sizeof(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_type(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_ternary(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_bit_shift(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_bin_cmp_op(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_not(gen_info_t *gi,list_t *lst,env_t *env);
+static int calc_load(gen_info_t *gi,env_t *env,string_t name);
+
 static int align(int localarea);
 static bool_t is_float_sym(list_t *lst);
 static void conv_ftoi(gen_info_t *gi,list_t *lst);
@@ -255,6 +266,7 @@ gen_info_t *create_gen_info(){
   gi->call_flag = FALSE;
   gi->label = 0;
   gi->clabel = -1;
+  gi->eval_type = FALSE;
 
   map = map_create();
   INFO_SET_MAP(gi,map);
@@ -627,8 +639,6 @@ static list_t *gen_operand(gen_info_t *gi,env_t *env,list_t *lst){
 	break;
   }
 
-  //dump_ast(val);
-
   return val;
 }
 
@@ -793,7 +803,7 @@ static int gen_loacl_int(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_loacl_int\n");
 #endif
 
-  return select_size(env,lst,FALSE);
+  return select_size(gi,env,lst,FALSE);
 }
 
 static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t scope){
@@ -807,7 +817,7 @@ static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t sc
 #endif
 
   sym = create_symbol(eval_type(gi,env,lst));
-  size = select_size(env,lst,FALSE);
+  size = select_size(gi,env,lst,FALSE);
   gen_info_add_offset(gi,-size);
   offset = gen_info_get_offset(gi);
   SYMBOL_SET_SCOPE(sym,scope);
@@ -826,7 +836,7 @@ static symbol_t *factory_member(gen_info_t *gi,env_t *env,list_t *lst,integer_t 
 #endif
 
   sym = create_symbol(eval_type(gi,env,lst));
-  size = select_size(env,lst,FALSE);
+  size = select_size(gi,env,lst,FALSE);
   SYMBOL_SET_SCOPE(sym,MEMBER);
   SYMBOL_SET_SIZE(sym,size);
   SYMBOL_SET_OFFSET(sym,offset);
@@ -842,7 +852,6 @@ static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_symbol\n");
 #endif
 
-  //dump_ast(lst);
   val = make_null();
   symbol = (string_t)car(lst);
   if(STRCMP(RETURN,symbol)){
@@ -857,12 +866,15 @@ static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 	val = gen_sub(gi,env,lst);
   } else if(STRCMP(MUL,symbol)){
 	val = gen_mul(gi,env,lst);
-  } else if(STRCMP(DIV,symbol) || STRCMP(MOD,symbol)){
+  } else if(STRCMP(DIV,symbol)
+			|| STRCMP(MOD,symbol)){
 	val = gen_div(gi,env,lst);
   } else if(STRCMP(FUNC_CALL,symbol)){
 	val = gen_call(gi,env,cdr(lst));
   } else if(STRCMP(FOR,symbol)){
 	val = gen_for(gi,env,cdr(lst));
+  } else if(STRCMP(DO,symbol)){
+	val = gen_do_while(gi,env,cdr(lst));
   } else if(STRCMP(WHILE,symbol)){
 	val = gen_while(gi,env,cdr(lst));
   } else if(STRCMP(IF,symbol)){
@@ -911,6 +923,10 @@ static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 	val = gen_cast(gi,env,cdr(lst));
   } else if(STRCMP(symbol,TERNARY)){
 	val = gen_ternary(gi,env,cdr(lst));
+  } else if(STRCMP(symbol,LABEL)){
+	val = gen_llabel(gi,cdr(lst));
+  } else if(STRCMP(symbol,GOTO)){
+	val = gen_goto(gi,env,cdr(lst));
   } else {
 	if(IS_ASSIGN(gi)){
 	  val = lookup_symbol(gi,env,lst);
@@ -1168,7 +1184,7 @@ static list_t *gen_call_func(gen_info_t *gi,env_t *env,func_t *func,list_t *lst)
   EMIT(gi,"callq _%s",car(lst));
 #endif
 
-  size = select_size(env,FUNC_GET_RET_TYPE(func),FALSE);
+  size = select_size(gi,env,FUNC_GET_RET_TYPE(func),FALSE);
   val = add_number(val,size);
 
   return val;
@@ -1189,7 +1205,7 @@ static list_t *gen_call_func_ptr(gen_info_t *gi,env_t *env,symbol_t *sym){
 #endif
 
   val = make_null();
-  size = select_size(env,SYMBOL_GET_RET_LST(sym),FALSE);
+  size = select_size(gi,env,SYMBOL_GET_RET_LST(sym),FALSE);
 
   val = add_number(val,size);
 
@@ -1835,7 +1851,7 @@ static list_t *gen_array_index(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *s
 
   val = make_null();
   val = gen_operand(gi,env,lst);
-  size = select_size(env,SYMBOL_GET_TYPE_LST(sym),TRUE);
+  size = select_size(gi,env,SYMBOL_GET_TYPE_LST(sym),TRUE);
   push(gi,"rax");
   EMIT(gi,"movq $%d,#rax",size);
   pop(gi,"rcx");
@@ -1877,7 +1893,7 @@ static list_t *gen_sizeof(gen_info_t *gi,env_t *env,list_t *lst){
 	val = gen_operand(gi,env,val);
 	break;
   case SYMBOL:
-	val = gen_operand(gi,env,lst);
+	val = gen_sizeof_sym(gi,env,lst);
 	break;
   case LIST:
 	val = gen_sizeof_expr(gi,env,lst);
@@ -1885,6 +1901,52 @@ static list_t *gen_sizeof(gen_info_t *gi,env_t *env,list_t *lst){
   default:
 	printf("error\n");
 	break;
+  }
+
+  return val;
+}
+
+static list_t *gen_sizeof_sym(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+  symbol_t *sym;
+  string_t name;
+  int size;
+
+#ifdef __DEBUG__
+  printf("gen_sizeof_sym\n");
+#endif
+
+  name = (string_t)car(lst);
+  if(STRCMP(name,TYPE)){
+	val = gen_operand(gi,env,lst);
+  } else {
+	val = make_null();
+	size = calc(gi,lst,env);
+	EMIT(gi,"movq $%d,#rax",size);
+	val = add_number(val,SYMBOL_GET_SIZE(sym));
+  }
+
+  return val;
+}
+
+static list_t *gen_sizeof_sym_sub(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym){
+
+  list_t *val;
+  list_t *type;
+  int size;
+#ifdef __DEBUG__
+  printf("gen_sizeof_sym_sub\n");
+#endif
+
+  type = SYMBOL_GET_TYPE_LST(sym);
+  val = make_null();
+  if(STRCMP(car(type),ARRAY)){
+	size = select_size(gi,env,cdr(type),TRUE);
+	EMIT(gi,"movq $%d,#rax",size);
+  } else {
+	EMIT(gi,"movq $%d,#rax",SYMBOL_GET_SIZE(sym));
+	val = add_number(val,SYMBOL_GET_SIZE(sym));
   }
 
   return val;
@@ -1900,7 +1962,6 @@ static list_t *gen_sizeof_expr(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_sizeof_expr\n");
 #endif
 
-  dump_ast(lst);
   val = make_null();
   type = check_type(env,lst);
   switch(type){
@@ -1931,12 +1992,10 @@ static list_t *gen_type(gen_info_t *gi,env_t *env,list_t *lst){
 #endif
 
   val = make_null();
-  size = select_size(env,lst,FALSE);
+  size = select_size(gi,env,lst,FALSE);
   val = add_number(val,size);
 
-  inst = select_inst(size);
-  reg = select_reg(size);
-  EMIT(gi,"%s $%d,#%s",inst,size,reg);
+  EMIT(gi,"movq $%d,#rax",size);
 
   return val;
 }
@@ -2327,6 +2386,22 @@ static void gen_jmp(gen_info_t *gi,char *label){
   return;
 }
 
+static list_t *gen_llabel(gen_info_t *gi,list_t *lst){
+
+  list_t *new_lst;
+  string_t label;
+
+#ifdef __DEBUG__
+  printf("gen_llabel\n");
+#endif
+
+  new_lst = make_null();
+  label = (string_t)car(lst);
+  gen_label(gi,label);
+
+  return new_lst;
+}
+
 static void gen_label(gen_info_t *gi,char *label){
 
 #ifdef __DEBUG__
@@ -2336,6 +2411,22 @@ static void gen_label(gen_info_t *gi,char *label){
   EMIT_NO_INDENT(gi,"%s:",label);
 
   return;
+}
+
+static list_t *gen_goto(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+  string_t l;
+
+#ifdef __DEBUG__
+  printf("gen_goto\n");
+#endif
+
+  val = make_null();
+  l = (string_t)car(lst);
+  gen_jmp(gi,l);
+
+  return val;
 }
 
 static list_t *gen_if(gen_info_t *gi,env_t *env,list_t *lst){
@@ -2370,6 +2461,36 @@ static list_t *gen_if(gen_info_t *gi,env_t *env,list_t *lst){
   } else {
     gen_label(gi,l0);
   }
+
+  return val;
+}
+
+static list_t *gen_do_while(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+  list_t *cond;
+  list_t *stmt;
+  string_t l0;
+  string_t l1;
+
+#ifdef __DEBUG__
+  printf("gen_do_while\n");
+#endif
+
+  stmt = car(lst);
+  cond = car(cdr(lst));
+
+  val = make_null();
+  l0 = make_label(gi);
+  l1 = make_label(gi);
+  gen_label(gi,l0);
+  gen_body(gi,env,stmt);
+
+  gen_body(gi,env,cond);
+  gen_cmp(gi);
+  gen_je(gi,l1);
+  gen_jmp(gi,l0);
+  gen_label(gi,l1);
 
   return val;
 }
@@ -2831,15 +2952,7 @@ static list_t *gen_cast(gen_info_t *ei,env_t *env,list_t *lst){
 
   val = make_null();
   cast_type = conv_type(env,car(lst),make_null());
-  printf("------------------------\n");
-  dump_ast(lst);
-  printf("------------------------\n");
-  dump_ast(cdr(lst));
-  printf("------------------------\n");
   name = gen_operand(ei,env,cdr(lst));
-  printf("===============================\n");
-  dump_ast(name);
-  printf("===============================\n");
 
   type = LIST_GET_TYPE(name);
   switch(type){
@@ -3020,13 +3133,14 @@ static void gen_enum_element(gen_info_t *gi,env_t *env,list_t *lst,string_t enum
 #ifdef __DEBUG__
   printf("gen_enum_element\n");
 #endif
+
   if(IS_LIST(lst)){
-	name = (string_t )car(car(lst));
-	val = *(integer_t *)car(cdr(car(lst)));
-	SET_ENUM_VALUE(gi,val);
+	  name = (string_t )car(car(lst));
+	  val = calc(gi,cdr(car(lst)),env);
+	  SET_ENUM_VALUE(gi,val);
   } else if(IS_SYMBOL(lst)){
-	name = (string_t )car(lst);
-	val = GET_ENUM_VALUE(gi);
+	  name = (string_t )car(lst);
+	  val = GET_ENUM_VALUE(gi);
   }
 
   enumdef = enumdef_create(val,enum_class);
@@ -3034,21 +3148,6 @@ static void gen_enum_element(gen_info_t *gi,env_t *env,list_t *lst,string_t enum
   INCREMENT_ENUM_VALUE(gi);
 
   return;
-}
-
-static int gen_enum_element_value(gen_info_t *gi,env_t *env,list_t *lst){
-
-#ifdef __DEBUG__
-  printf("gen_enum_element_value\n");
-#endif
-
-  if(IS_LIST(lst)){
-
-  } else {
-	return GET_ENUM_VALUE(gi);
-  }
-
-  return 0;
 }
 
 static list_t *gen_enum_value(gen_info_t *gi,env_t *env,list_t *lst){
@@ -3123,7 +3222,9 @@ static list_t *gen_enum(gen_info_t *gi,env_t *env,list_t *lst){
   SYMBOL_SET_TYPE(sym,TYPE_ENUM);
   name = car(lst);
   INIT_ENUM_VALUE(gi);
+  gi->eval_type = TRUE;
   gen_enum_elements(gi,env,car(cdr(lst)),name);
+  gi->eval_type = FALSE;
   insert_obj(env,name,sym);
   INIT_ENUM_VALUE(gi);
 
@@ -3355,7 +3456,7 @@ static list_t *eval_type(gen_info_t *gi,env_t  *env,list_t *lst){
   }
 }
 
-static integer_t select_size(env_t  *env,list_t *lst,bool_t flg){
+static integer_t select_size(gen_info_t *gi,env_t  *env,list_t *lst,bool_t flg){
 
   list_t *type;
   integer_t size;
@@ -3388,22 +3489,22 @@ static integer_t select_size(env_t  *env,list_t *lst,bool_t flg){
 	return 1;
   } else if(STRCMP(car(lst),SIGNED)){
 	if(IS_NOT_NULL_LIST(lst)){
-	  return select_size(env,cdr(lst),FALSE);
+	  return select_size(gi,env,cdr(lst),FALSE);
 	} else {
 	  return sizeof(signed);
 	}
   } else if(STRCMP(car(lst),UNSIGNED)){
 	if(IS_NOT_NULL_LIST(lst)){
-	  return select_size(env,cdr(lst),FALSE);
+	  return select_size(gi,env,cdr(lst),FALSE);
 	} else {
 	  return sizeof(unsigned);
 	}
   } else if(STRCMP(car(lst),ARRAY)){
 	if(flg){
-	  return select_size(env,cdr(cdr(lst)),flg);
+	  return select_size(gi,env,cdr(cdr(lst)),flg);
 	} else {
-	  size = get_size_of_array(cdr(lst),env);
-	  return  size * select_size(env,cdr(cdr(lst)),flg);
+	  size = get_size_of_array(gi,cdr(lst),env);
+	  return  size * select_size(gi,env,cdr(cdr(lst)),flg);
 	}
   } else if(STRCMP(car(lst),STRUCT_ALLOC)){
 	return select_compound_type(env,cdr(lst));
@@ -3430,7 +3531,7 @@ static integer_t select_size(env_t  *env,list_t *lst,bool_t flg){
 	  com = (compound_def_t *)sym;
 	  return COMPOUND_TYPE_GET_SIZE(com);
 	} else {
-	  return select_size(env,SYMBOL_GET_TYPE_LST(sym),FALSE);
+	  return select_size(gi,env,SYMBOL_GET_TYPE_LST(sym),FALSE);
 	}
   }
   exit(1);
@@ -3702,19 +3803,19 @@ static string_t make_label(gen_info_t *gi){
   return str;
 }
 
-static int get_size_of_array(list_t *lst,env_t *env){
+static int get_size_of_array(gen_info_t *gi,list_t *lst,env_t *env){
 
   int size;
 #ifdef __DEBUG__
   printf("get_size_of_array\n");
 #endif
 
-  size = calc(lst,env);
+  size = calc(gi,lst,env);
 
   return size;
 }
 
-static int calc(list_t *lst,env_t *env){
+static int calc(gen_info_t *gi,list_t *lst,env_t *env){
 
   list_type_t type;
 
@@ -3725,20 +3826,20 @@ static int calc(list_t *lst,env_t *env){
   type = LIST_GET_TYPE(lst);
   switch(type){
   case LIST:
-	return calc(car(lst),env);
+	return calc(gi,car(lst),env);
 	break;
   case SYMBOL:
-	return calc_symbol(lst,env);
+	return calc_symbol(gi,lst,env);
 	break;
   case INTEGER:
-	return calc_integer(lst,env);
+	return calc_integer(gi,lst,env);
 	break;
   }
 
   exit(1);
 }
 
-static int calc_symbol(list_t *lst,env_t *env){
+static int calc_symbol(gen_info_t *gi,list_t *lst,env_t *env){
 
   string_t name;
 #ifdef __DEBUG__
@@ -3747,29 +3848,47 @@ static int calc_symbol(list_t *lst,env_t *env){
 
   name = (string_t)car(lst);
   if(STRCMP(name,ADD)){
-	return calc_add(cdr(lst),env);
+	return calc_add(gi,cdr(lst),env);
   } else if(STRCMP(name,SUB)){
-	return calc_sub(cdr(lst),env);
+	return calc_sub(gi,cdr(lst),env);
   } else if(STRCMP(name,MUL)){
-	return calc_mul(cdr(lst),env);
+	return calc_mul(gi,cdr(lst),env);
   } else if(STRCMP(name,DIV)){
-	return calc_div(cdr(lst),env);
+	return calc_div(gi,cdr(lst),env);
   } else if(STRCMP(name,MOD)){
-	return calc_mod(cdr(lst),env);
+	return calc_mod(gi,cdr(lst),env);
   } else if(STRCMP(name,TYPE)){
-	return calc_type(cdr(lst),env);
+	return calc_type(gi,cdr(lst),env);
   } else if(STRCMP(name,CAST)){
-	return calc(cdr(cdr(lst)),env);
+	return calc(gi,cdr(cdr(lst)),env);
   } else if(STRCMP(name,SIZEOF)){
-	return calc_sizeof(cdr(lst),env);
+	return calc_sizeof(gi,cdr(lst),env);
+  } else if((STRCMP(name,LESS))
+			|| (STRCMP(name,GREATER))
+			|| (STRCMP(name,LESS_EQAUL))
+			|| (STRCMP(name,GREATER_EQUAL))
+			|| (STRCMP(name,EQUAL))
+			|| (STRCMP(name,NOT_EQUAL))){
+	return calc_bin_cmp_op(gi,lst,env);
+  } else if(STRCMP(name,NOT)){
+	return calc_not(gi,cdr(lst),env);
+  } else if(STRCMP(name,BIT_LEFT_SHIFT)
+			|| STRCMP(name,BIT_RIGHT_SHIFT)){
+	return calc_bit_shift(gi,lst,env);
+  } else if(STRCMP(name,TERNARY)){
+	return calc_ternary(gi,cdr(lst),env);
   } else {
-	return select_size(env,lst,FALSE);
+	if(gi->eval_type){
+	  return calc_load(gi,env,name);
+	} else {
+	  return select_size(gi,env,lst,FALSE);
+	}
   }
 
   exit(1);
 }
 
-static int calc_integer(list_t *lst,env_t *env){
+static int calc_integer(gen_info_t *gi,list_t *lst,env_t *env){
 
   int val;
 #ifdef __DEBUG__
@@ -3781,7 +3900,7 @@ static int calc_integer(list_t *lst,env_t *env){
   return val;
 }
 
-static int calc_add(list_t *lst,env_t *env){
+static int calc_add(gen_info_t *gi,list_t *lst,env_t *env){
 
   int val;
   int left;
@@ -3791,14 +3910,14 @@ static int calc_add(list_t *lst,env_t *env){
   printf("calc_add\n");
 #endif
 
-  left = calc(lst,env);
-  right = calc(cdr(lst),env);
+  left = calc(gi,lst,env);
+  right = calc(gi,cdr(lst),env);
   val = left + right;
 
   return val;
 }
 
-static int calc_sub(list_t *lst,env_t *env){
+static int calc_sub(gen_info_t *gi,list_t *lst,env_t *env){
 
   int val;
   int left;
@@ -3808,14 +3927,14 @@ static int calc_sub(list_t *lst,env_t *env){
   printf("calc_sub\n");
 #endif
 
-  left = calc(lst,env);
-  right = calc(cdr(lst),env);
+  left = calc(gi,lst,env);
+  right = calc(gi,cdr(lst),env);
   val = left - right;
 
   return val;
 }
 
-static int calc_mul(list_t *lst,env_t *env){
+static int calc_mul(gen_info_t *gi,list_t *lst,env_t *env){
 
   int val;
   int left;
@@ -3825,14 +3944,14 @@ static int calc_mul(list_t *lst,env_t *env){
   printf("calc_mul\n");
 #endif
 
-  left = calc(lst,env);
-  right = calc(cdr(lst),env);
+  left = calc(gi,lst,env);
+  right = calc(gi,cdr(lst),env);
   val = left * right;
 
   return val;
 }
 
-static int calc_div(list_t *lst,env_t *env){
+static int calc_div(gen_info_t *gi,list_t *lst,env_t *env){
 
   int val;
   int left;
@@ -3842,14 +3961,14 @@ static int calc_div(list_t *lst,env_t *env){
   printf("calc_div\n");
 #endif
 
-  left = calc(lst,env);
-  right = calc(cdr(lst),env);
+  left = calc(gi,lst,env);
+  right = calc(gi,cdr(lst),env);
   val = left / right;
 
   return val;
 }
 
-static int calc_mod(list_t *lst,env_t *env){
+static int calc_mod(gen_info_t *gi,list_t *lst,env_t *env){
 
   int val;
   int left;
@@ -3859,32 +3978,149 @@ static int calc_mod(list_t *lst,env_t *env){
   printf("calc_mod\n");
 #endif
 
-  left = calc(lst,env);
-  right = calc(cdr(lst),env);
+  left = calc(gi,lst,env);
+  right = calc(gi,cdr(lst),env);
   val = left % right;
 
   return val;
 }
 
-static int calc_sizeof(list_t *lst,env_t *env){
+static int calc_sizeof(gen_info_t *gi,list_t *lst,env_t *env){
 
   int val;
 #ifdef __DEBUG__
   printf("calc_sizeof\n");
 #endif
 
-  val = calc(lst,env);
+  val = calc(gi,lst,env);
 
   return val;
 }
 
-static int calc_type(list_t *lst,env_t *env){
+static int calc_type(gen_info_t *gi,list_t *lst,env_t *env){
 
 #ifdef __DEBUG__
   printf("calc_type\n");
 #endif
 
-  return select_size(env,lst,FALSE);
+  return select_size(gi,env,lst,FALSE);
+}
+
+static int calc_ternary(gen_info_t *gi,list_t *lst,env_t *env){
+
+  int cond;
+  int left;
+  int right;
+  int val;
+
+#ifdef __DEBUG__
+  printf("calc_ternary\n");
+#endif
+
+  cond = calc(gi,car(lst),env);
+  left = calc(gi,car(cdr(lst)),env);
+  right = calc(gi,car(cdr(cdr(lst))),env);
+
+  val = cond ? left : right;
+
+  return val;
+}
+
+static int calc_bit_shift(gen_info_t *gi,list_t *lst,env_t *env){
+
+  string_t op;
+  int val;
+  int left;
+  int right;
+
+#ifdef __DEBUG__
+  printf("calc_bit_shift\n");
+#endif
+
+  left = calc(gi,cdr(lst),env);
+  right = calc(gi,cdr(cdr(lst)),env);
+  op = (string_t)car(lst);
+  if(STRCMP(op,BIT_LEFT_SHIFT)){
+	val = left << right;
+  } else if(STRCMP(op,BIT_RIGHT_SHIFT)){
+	val = left >> right;
+  }
+
+  return val;
+}
+
+static int calc_bin_cmp_op(gen_info_t *gi,list_t *lst,env_t *env){
+
+  string_t op;
+  int val;
+  int left;
+  int right;
+
+#ifdef __DEBUG__
+  printf("calc_bin_cmp_op\n");
+#endif
+
+  left = calc(gi,cdr(lst),env);
+  right = calc(gi,cdr(cdr(lst)),env);
+
+  op = (string_t)car(lst);
+  if(STRCMP(op,LESS)){
+	val = left < right;
+  } else if(STRCMP(op,GREATER)){
+	val = left > right;
+  } else if(STRCMP(op,LESS_EQAUL)){
+	val = left <= right;
+  } else if(STRCMP(op,GREATER_EQUAL)){
+	val = left >= right;
+  } else if(STRCMP(op,EQUAL)){
+	val = left == right;
+  } else if(STRCMP(op,NOT_EQUAL)){
+	val = left != right;
+  }
+
+  return val;
+}
+
+static int calc_not(gen_info_t *gi,list_t *lst,env_t *env){
+
+  int val;
+#ifdef __DEBUG__
+  printf("calc_not\n");
+#endif
+
+  val = calc(gi,lst,env);
+
+  return !val;
+}
+
+static int calc_load(gen_info_t *gi,env_t *env,string_t name){
+
+  int val;
+  object_t *obj;
+  enumdef_t *enumdef;
+
+#ifdef __DEBUG__
+  printf("calc_load\n");
+#endif
+
+  obj = lookup_obj(env,name);
+  printf("name : %s",name);
+  if(!obj){
+	exit(1);
+  }
+
+  switch(OBJ_GET_SCOPE(obj)){
+  case ENUMLATE:
+	enumdef = (enumdef_t *)obj;
+	val = ENUMDEF_GET_VAL(enumdef);
+	break;
+  default:
+	printf("name : %s\n",name);
+	exit(1);
+	break;
+  }
+
+  return val;
 }
 
 static int align(int localarea){

@@ -30,6 +30,7 @@ struct gen_info_t {
   int clabel;
   int no_name_label_no;
   set_t *set;
+  bool_t eval_type;
 };
 
 gen_info_t *create_gen_info();
