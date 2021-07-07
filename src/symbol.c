@@ -23,8 +23,6 @@ symbol_t *create_symbol(list_t *lst){
   sym->offset = 0;
   sym->type_lst = lst;
   sym->func.ret_type = get_ret_type(lst);
-
-  DUMP_AST(sym->type_lst);
   
   return sym;
 }
