@@ -41,17 +41,13 @@ typedef struct map_t map_t;
 typedef enum type_type_t type_type_t;
 typedef struct func_t func_t;
 typedef struct object_t object_t;
+typedef struct enumdef_t enumdef_t;
+typedef struct sema_t sema_t;
 
 enum kind_t {
-  KIND_UNDEFINE,
   KIND_VARIABLE,
-  //KIND_FUNCTION,
-  KIND_ADDRESS,
-  KIND_DEREF,
   KIND_ENUM,
-  KIND_REF_MEMBER,
   KIND_POINTER,
-  KIND_TYPE
 };
 
 enum type_t {
@@ -63,24 +59,25 @@ enum type_t {
   TYPE_FLOAT,
   TYPE_STRUCT,
   TYPE_ENUM,
-  //TYPE_FUNCTION,
   TYPE_UNDEFINE,
   TYPE_TYPE,
   TYPE_POINTER,
-  TYPE_UNION
+  TYPE_UNION,
+  TYPE_STRING,
+  TYPE_UNSIGNED,
+  TYPE_SIGNED,
+  TYPE_ARRAY,
+  TYPE_VOID
 };
 
-enum access_type {
-  EXTERNAL,
-  INTERNAL,
-  REGISTER,
-  TYPEDEF
-};
 
 enum scope_t {
   UNDEFINED,
   LOCAL,
-  GLOBAL
+  GLOBAL,
+  MEMBER,
+  ARGMENT,
+  ENUMLATE,
 };
 
 enum decl_type_t {
@@ -92,7 +89,8 @@ enum decl_type_t {
 enum type_type_t {
   TYPE_FUNCTION,
   TYPE_SYMBOL,
-  TYPE_COMPOUND
+  TYPE_COMPOUND,
+  TYPE_ENUMULATE,
 };
 
 enum compound_type_t {
