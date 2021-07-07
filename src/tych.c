@@ -23,7 +23,6 @@ static type_t check_op_cmp(env_t *env,list_t *lst);
 static type_t convert_integer(type_t type);
 static type_t check_type_enum();
 static type_t check_sizeof(env_t *env,list_t *lst);
-static type_t check_ttype(env_t *env,list_t *lst);
 
 static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst);
 static type_t analyze_utype(list_t *lst,type_t ty);
@@ -142,8 +141,6 @@ static type_t check_op_type_sym(env_t *env,list_t *lst){
 	return check_sizeof(env,cdr(lst));
   } else if(STRCMP(NOT,name)){
 	return check_not_op(env,cdr(lst));
-  } else if(STRCMP(TYPE,name)){
-	return check_ttype(env,cdr(lst));
   } else {
 	obj = lookup_obj(env,name);
 	if(!obj){
@@ -409,16 +406,7 @@ static type_t check_sizeof(env_t *env,list_t *lst){
   printf("check_sizeof\n");
 #endif
 
-  return check_op_type_list(env,lst);
-}
-
-static type_t check_ttype(env_t *env,list_t *lst){
-
-#ifdef __DEBUG__
-  printf("check_ttype\n");
-#endif
-
-  return analyze_type(env,lst,make_null());
+  return TYPE_INT;
 }
 
 static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst){
