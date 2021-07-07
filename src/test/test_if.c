@@ -1,14 +1,22 @@
 
-int func(int d,int c){
+int func(int a,int b){
 
-  int a = 30;
-  if(a < 40){
-    a = 20;
+  if(a < b){
+	return a;
+  } else {
+	return b;
   }
-
-  return a;
+  
+  return 0;
 }
 
 int main(){
-  return func(1,2);
+
+  int a;
+  int b;
+
+  a = 10;
+  b = 20;
+  
+  return func(a,b);
 }

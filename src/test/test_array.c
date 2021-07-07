@@ -1,18 +1,17 @@
 
-int func(){
-  
-  int array[5];
-  int i = 0;
 
-  array[i] = 40;
-  i = 1;
-  array[i] = 80;
-  i = 4;
-  array[i] = 100;
-  
-  return array[i];
+int func(int arr[]){
+
+  return a[0];
 }
 
+
 int main(){
-  return func();
+
+  int a;
+  int arr[5];
+  
+  a = func(arr);
+  
+  return a;
 }

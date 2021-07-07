@@ -1,17 +1,25 @@
 
 int func(){
 
-  int i = 0;
-  int sum = 0;
+  int i;
+  int sum;
   
-  while(i < 10){
-    sum = sum + i;
-    i = i + 1;
+  i = 0;
+  sum = 0;
+  while(i <= 10){
+	sum += i;
+	i++;
   }
   
   return sum;
 }
 
+
 int main(){
-  return func();
+
+  int a;
+
+  a = func();
+  
+  return a;
 }

@@ -1,11 +1,14 @@
-
-typedef int integer_t;
-
 int main(){
 
-  int size;
+  int a;
+  int b;
   
-  size = sizeof(integer_t);
-  
-  return size;
+  a = sizeof(int);
+  b = sizeof(int *);
+
+  if(a + b == 8){
+	return 1;
+  } else {
+	return 0;
+  }
 }
