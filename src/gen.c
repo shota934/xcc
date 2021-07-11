@@ -548,6 +548,7 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,list_t *lst,env_t *penv){
   gen_local_vars(gi,env,get_local_vars(lst));
 
   if(gen_info_get_localarea(gi)){
+	gi->offset = -gi->localarea;
 	gi->localarea = align(gi->localarea);
 	EMIT(gi,"subq $%d, %rsp",gi->localarea);
 	gen_info_add_stack_pos(gi,gi->localarea);
@@ -818,8 +819,8 @@ static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t sc
 
   sym = create_symbol(eval_type(gi,env,lst));
   size = select_size(gi,env,lst,FALSE);
-  gen_info_add_offset(gi,-size);
   offset = gen_info_get_offset(gi);
+  gen_info_add_offset(gi,size);
   SYMBOL_SET_SCOPE(sym,scope);
   SYMBOL_SET_SIZE(sym,size);
   SYMBOL_SET_OFFSET(sym,offset);
