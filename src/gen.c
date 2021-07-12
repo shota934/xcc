@@ -72,16 +72,23 @@ static list_t *get_ret(list_t *lst);
 static list_t *get_body(list_t *lst);
 static list_t *get_local_vars(list_t *lst);
 static bool_t has_args(list_t *lst);
+static int calc_arg_offset(gen_info_t *gi, int size);
+static int calc_offset(gen_info_t *gi, int size);
 
 static void emitf(gen_info_t *gi,int line, char *fmt, ...);
 
-static void gen_info_add_offset(gen_info_t *gi,int offset);
-static int gen_info_get_offset(gen_info_t *gi);
+static void init_pos(gen_info_t *gi);
+static void gen_info_add_pos(gen_info_t *gi,int pos);
+static int gen_info_get_pos(gen_info_t *gi);
+
 static void gen_info_add_stack_pos(gen_info_t *gi,int pos);
 static int gen_info_get_stack_pos(gen_info_t *gi);
+static void gen_info_add_no_align_localarea(gen_info_t *gi,int localarea);
+static int gen_info_get_no_align_localarea(gen_info_t *gi);
+
 static void gen_info_add_localarea(gen_info_t *gi,int localarea);
 static int gen_info_get_localarea(gen_info_t *gi);
-static list_t *gen_funcdecl(gen_info_t *gi,env_t *env,list_t *lst);
+
 static list_t *gen_funcdef(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_func_name(gen_info_t *gi,list_t *lst);
 static list_t *gen_global_var(gen_info_t *gi,env_t *env,list_t *lst);
@@ -95,6 +102,7 @@ static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_ret(gen_info_t *gi);
 static list_t *gen_args(gen_info_t *gi,env_t *env,list_t *lst);
 static type_t get_type(list_t *lst);
+static list_t *gen_funcdecl(gen_info_t *gi,env_t *env,list_t *lst);
 
 static void gen_local_vars(gen_info_t *gi,env_t *env,list_t *lst);
 static int gen_loacl_ints(gen_info_t *gi,env_t *env,list_t *lst);
@@ -155,6 +163,7 @@ static list_t *gen_global_load(gen_info_t *gi,env_t *env,list_t *lst,object_t *o
 static list_t *gen_enum_load(gen_info_t *gi,enumdef_t *enumdef);
 
 static list_t *gen_func_parms(gen_info_t *gi,env_t *env,list_t *lst);
+static int gen_func_parms_size(gen_info_t *gi,env_t *env,list_t *lst);
 static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index);
 static void load_parm(gen_info_t *gi,symbol_t *sym,int index);
 static char *gen_cmp_inst(list_t *lst);
@@ -195,13 +204,11 @@ static list_t *gen_struct_decl(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_struct_def(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_enum(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_union(gen_info_t *gi,env_t *env,list_t *lst);
-static list_t *gen_members_of_struct(gen_info_t *gi,env_t *env,list_t *lst);
-static list_t *gen_member_of_struct(gen_info_t *gi,env_t *env,list_t *lst);
 static integer_t gen_members(gen_info_t *gi,env_t *env,list_t *lst, int offset);
 static integer_t get_operand_size(list_t *lst);
 static integer_t calc_mem_offset(list_t *lst);
 static integer_t calc_mem_size(list_t *lst);
-
+static int calc_struct_size(gen_info_t *gi,env_t *env,list_t *lst);
 static void push(gen_info_t *gi,string_t reg);
 static void pop(gen_info_t *gi,string_t reg);
 static void pop_only_inst(gen_info_t *gi,string_t reg);
@@ -243,6 +250,7 @@ static int calc_not(gen_info_t *gi,list_t *lst,env_t *env);
 static int calc_load(gen_info_t *gi,env_t *env,string_t name);
 
 static int align(int localarea);
+static int calc_mem_alignment(int offset,int size);
 static bool_t is_float_sym(list_t *lst);
 static void conv_ftoi(gen_info_t *gi,list_t *lst);
 static bool_t is_array_type(list_t *lst);
@@ -260,8 +268,9 @@ gen_info_t *create_gen_info(){
   gi->src = NULL;
   gi->output_file = NULL;
   gi->stack_pos = 0;
-  gi->offset = 0;
+  gi->pos = 0;
   gi->localarea = 0;
+  gi->no_align_localarea = 0;
   gi->flag_of_assign = FALSE;
   gi->call_flag = FALSE;
   gi->label = 0;
@@ -280,8 +289,9 @@ void init_gen_info(gen_info_t *gi){
   printf("init_gen_info\n");
 #endif
   gi->stack_pos = 8;
-  gi->offset = 0;
+  gi->pos = 0;
   gi->localarea = 0;
+  gi->no_align_localarea = 0;
   gi->flag_of_assign = FALSE;
   gi->call_flag = FALSE;
   gi->clabel = -1;
@@ -371,6 +381,41 @@ static bool_t has_args(list_t *lst){
   }
 }
 
+static int calc_arg_offset(gen_info_t *gi, int size){
+
+  int offset;
+  int alignment;
+
+  alignment = calc_mem_alignment(gi->pos,size);
+  if(0 < alignment){
+	gi->pos += alignment;
+  }
+
+  gen_info_add_pos(gi,size);
+  offset = -gi->pos;
+
+  return offset;
+}
+
+static int calc_offset(gen_info_t *gi, int size){
+
+  int offset;
+  int alignment;
+#ifdef __DEBUG__
+  printf("calc_offset\n");
+#endif
+
+  alignment = calc_mem_alignment(gi->pos,size);
+  if(0 < alignment){
+	gi->pos += alignment;
+  }
+
+  offset = gi->pos - gi->no_align_localarea;
+  gen_info_add_pos(gi,size);
+
+  return offset;
+}
+
 static void emitf(gen_info_t *gi,int line, char *fmt, ...){
 
   char buf[256];
@@ -395,15 +440,22 @@ static void emitf(gen_info_t *gi,int line, char *fmt, ...){
   return;
 }
 
-static void gen_info_add_offset(gen_info_t *gi,int offset){
+static void init_pos(gen_info_t *gi){
 
-  gi->offset += offset;
+  gi->pos = 0;
 
   return;
 }
 
-static int gen_info_get_offset(gen_info_t *gi){
-  return gi->offset;
+static void gen_info_add_pos(gen_info_t *gi,int pos){
+
+  gi->pos += pos;
+
+  return;
+}
+
+static int gen_info_get_pos(gen_info_t *gi){
+  return gi->pos;
 }
 
 static void gen_info_add_stack_pos(gen_info_t *gi,int pos){
@@ -426,6 +478,16 @@ static void gen_info_add_localarea(gen_info_t *gi,int localarea){
 
 static int  gen_info_get_localarea(gen_info_t *gi){
   return gi->localarea;
+}
+
+static void gen_info_add_no_align_localarea(gen_info_t *gi,int localarea){
+
+  gi->no_align_localarea += localarea;
+
+  return;
+}
+static int gen_info_get_no_align_localarea(gen_info_t *gi){
+  return gi->no_align_localarea;
 }
 
 static list_t *gen_funcdecl(gen_info_t *gi,env_t *env,list_t *lst){
@@ -547,10 +609,12 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,list_t *lst,env_t *penv){
   gen_args(gi,env,get_args(lst));
   gen_local_vars(gi,env,get_local_vars(lst));
 
-  if(gen_info_get_localarea(gi)){
-	gi->offset = -gi->localarea;
-	gi->localarea = align(gi->localarea);
+  if(gen_info_get_no_align_localarea(gi)){
+	gi->localarea = align(gen_info_get_no_align_localarea(gi));
 	EMIT(gi,"subq $%d, %rsp",gi->localarea);
+	gen_info_add_stack_pos(gi,gi->localarea);
+  } else {
+	gi->localarea = gen_info_get_no_align_localarea(gi);
 	gen_info_add_stack_pos(gi,gi->localarea);
   }
 
@@ -769,10 +833,11 @@ static void gen_local_vars(gen_info_t *gi,env_t *env,list_t *lst){
 #endif
 
   localarea = 0;
+  init_pos(gi);
   val = make_null();
   localarea += gen_loacl_ints(gi,env,lst);
 
-  gen_info_add_localarea(gi,localarea);
+  gen_info_add_no_align_localarea(gi,localarea);
 
   return;
 }
@@ -781,6 +846,7 @@ static int gen_loacl_ints(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
   int localarea;
+  int size;
   list_t *p;
 #ifdef __DEBUG__
   printf("gen_loacl_ints\n");
@@ -789,7 +855,9 @@ static int gen_loacl_ints(gen_info_t *gi,env_t *env,list_t *lst){
   p = lst;
   localarea = 0;
   while(IS_NOT_NULL_LIST(p)){
-	localarea += gen_loacl_int(gi,env,cdr(cdr(car(p))));
+	size = gen_loacl_int(gi,env,cdr(cdr(car(p))));
+	localarea += calc_mem_alignment(localarea,size);
+	localarea += size;
 	p = cdr(p);
   }
 
@@ -812,6 +880,7 @@ static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t sc
   symbol_t *sym;
   int size;
   int offset;
+  int alignment;
 
 #ifdef __DEBUG__
   printf("factory_symbol\n");
@@ -819,8 +888,16 @@ static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t sc
 
   sym = create_symbol(eval_type(gi,env,lst));
   size = select_size(gi,env,lst,FALSE);
-  offset = gen_info_get_offset(gi);
-  gen_info_add_offset(gi,size);
+
+  switch(scope){
+  case ARGMENT:
+	offset = calc_arg_offset(gi,size);
+	break;
+  default:
+	offset = calc_offset(gi,size);
+	break;
+  }
+
   SYMBOL_SET_SCOPE(sym,scope);
   SYMBOL_SET_SIZE(sym,size);
   SYMBOL_SET_OFFSET(sym,offset);
@@ -832,12 +909,18 @@ static symbol_t *factory_member(gen_info_t *gi,env_t *env,list_t *lst,integer_t 
 
   symbol_t *sym;
   int size;
+  int alignment;
 #ifdef __DEBUG__
   printf("factory_member\n");
 #endif
 
   sym = create_symbol(eval_type(gi,env,lst));
   size = select_size(gi,env,lst,FALSE);
+  alignment = calc_mem_alignment(-offset,size);
+  if(0 < alignment){
+	offset += alignment;
+  }
+
   SYMBOL_SET_SCOPE(sym,MEMBER);
   SYMBOL_SET_SIZE(sym,size);
   SYMBOL_SET_OFFSET(sym,offset);
@@ -2291,26 +2374,60 @@ static list_t *gen_func_parms(gen_info_t *gi,env_t *env,list_t *lst){
   float_lst = car(cdr(l));
   other_lst = car(cdr(cdr(l)));
 
+  localarea = gen_func_parms_size(gi,env,l);
+  gen_info_add_no_align_localarea(gi,localarea);
   for(p = int_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
-	localarea += gen_func_parm(gi,env,car(p),i);
+	gen_func_parm(gi,env,car(p),i);
 	i++;
   }
 
   i = 0;
   for(p = float_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
-	localarea += gen_func_parm(gi,env,car(p),i);
+	gen_func_parm(gi,env,car(p),i);
 	i++;
   }
 
   i = 0;
   for(p = other_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
-	localarea += gen_func_parm(gi,env,car(p),i);
+	gen_func_parm(gi,env,car(p),i);
 	i++;
   }
 
-  gen_info_add_localarea(gi,localarea);
-
   return val;
+}
+
+static int gen_func_parms_size(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *p;
+  list_t *l;
+  list_t *int_lst;
+  list_t *float_lst;
+  list_t *other_lst;
+  int localarea;
+  int i;
+
+#ifdef __DEBUG__
+  printf("gen_func_parms_size\n");
+#endif
+
+  localarea = 0;
+  int_lst = car(lst);
+  float_lst = car(cdr(lst));
+  other_lst = car(cdr(cdr(lst)));
+
+  for(p = int_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
+	localarea += select_size(gi,env,cdr(car(p)),FALSE);
+  }
+
+  for(p = float_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
+	localarea += select_size(gi,env,cdr(car(p)),FALSE);
+  }
+
+  for(p = other_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
+	localarea += select_size(gi,env,cdr(car(p)),FALSE);
+  }
+
+  return localarea;
 }
 
 static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index){
@@ -3190,6 +3307,7 @@ static list_t *gen_struct_def(gen_info_t *gi,env_t *env,list_t *lst){
   string_t name;
   compound_def_t *com;
   env_t *stru_env;
+  int size;
 
 #ifdef __DEBUG__
   printf("gen_struct_def\n");
@@ -3198,10 +3316,12 @@ static list_t *gen_struct_def(gen_info_t *gi,env_t *env,list_t *lst){
   val = make_null();
   stru_env = extend_env(env);
   name = car(lst);
+  size = calc_struct_size(gi,env,car(cdr(lst)));
   com = create_compound_type_def(TYPE_COMPOUND,GLOBAL);
   COMPOUND_TYPE_SET_TYPE(com,STRUCT_COMPOUND_TYPE);
   COMPOUND_TYPE_SET_ENV(com,stru_env);
-  COMPOUND_TYPE_SET_SIZE(com,gen_members(gi,stru_env,car(cdr(lst)),0));
+  size = gen_members(gi,stru_env,car(cdr(lst)),0);
+  COMPOUND_TYPE_SET_SIZE(com,size);
   insert_obj(env,name,com);
   val = add_symbol(val,name);
 
@@ -3272,13 +3392,12 @@ static integer_t gen_members(gen_info_t *gi,env_t *env,list_t *lst, int offset){
 #endif
 
   if(IS_NULL_LIST(lst)){
-	return 0;
+	return offset;
   } else {
 	sym = factory_member(gi,env,cdr(car(lst)),offset);
 	name = car(car(lst));
 	insert_obj(env,name,sym);
-	size = SYMBOL_GET_SIZE(sym);
-	return size + gen_members(gi,env,cdr(lst),offset + size);
+	return gen_members(gi,env,cdr(lst),SYMBOL_GET_OFFSET(sym) + SYMBOL_GET_SIZE(sym));
   }
 }
 
@@ -3337,6 +3456,25 @@ static integer_t calc_mem_size(list_t *lst){
   offset = *(integer_t *)car(car(p));
 
   return offset;
+}
+
+static int calc_struct_size(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *p;
+  int size;
+
+#ifdef __DEBUG__
+  printf("calc_struct_size\n");
+#endif
+
+  p = lst;
+  size = 0;
+  while(IS_NOT_NULL_LIST(p)){
+	size += select_size(gi,env,cdr(car(lst)),FALSE);
+	p = cdr(p);
+  }
+
+  return size;
 }
 
 static void push(gen_info_t *gi,string_t reg){
@@ -4138,6 +4276,22 @@ static int align(int localarea){
   }
 
   return size;
+}
+
+static int calc_mem_alignment(int offset,int size){
+
+  int r;
+
+#ifdef __DEBUG__
+  printf("calc_mem_alignment\n");
+#endif
+
+  r = offset % size;
+  if(r == 0){
+	return 0;
+  }
+
+  return size - r;
 }
 
 static bool_t is_float_sym(list_t *lst){

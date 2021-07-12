@@ -20,8 +20,9 @@ struct gen_info_t {
   file_t *src;
   file_t *output_file;
   int stack_pos;
-  int offset;
+  int pos;
   int localarea;
+  int no_align_localarea;
   bool_t flag_of_assign;
   int enum_value;
   bool_t call_flag;
