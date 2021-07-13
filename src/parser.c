@@ -129,6 +129,7 @@
 #define IS_QUESTION(t)   (TOKEN_GET_TYPE(t) == TOKEN_QUESTION)
 #define IS_ATTRIBUTE(t)  (TOKEN_GET_TYPE(t) == TOKEN_ATTRIBUTE)
 #define IS_DO(t)  (TOKEN_GET_TYPE(t) == TOKEN_DO)
+#define IS_ASM(t) (TOKEN_GET_TYPE(t) == TOKEN_ASM)
 
 static list_t *parser_parse_def(parser_t *parser);
 static list_t *parser_parse_storage_class_dcl(parser_t *parser);
@@ -163,6 +164,7 @@ static list_t *parser_parse_vars(parser_t *parser);
 static list_t *parser_parse_var(parser_t *parser);
 static list_t *parser_parse_while(parser_t *parser);
 static list_t *parser_parse_do_while(parser_t *parser);
+static list_t *parser_parse_asm(parser_t *parser);
 static list_t *parser_parse_switch(parser_t *parser);
 static list_t *parser_parse_switch_cases(parser_t *parser);
 static list_t *parser_parse_switch_case(parser_t *parser);
@@ -927,6 +929,9 @@ static list_t *parser_parse_stmt(parser_t *parser){
   } else if(IS_DO(t)){
 	new_lst = make_symbol(new_lst,t);
 	new_lst = concat(new_lst,parser_parse_do_while(parser));
+  } else if(IS_ASM(t)){
+	new_lst = make_symbol(new_lst,t);
+	new_lst = concat(new_lst,parser_parse_asm(parser));
   } else if(IS_END_T(t)){
 	new_lst = make_null();
   } else {
@@ -1468,6 +1473,34 @@ static list_t *parser_parse_do_while(parser_t *parser){
 
   cond = parser_parse_stmt_expr(parser);
   new_lst = concat(stmt,cond);
+
+  return new_lst;
+}
+
+static list_t *parser_parse_asm(parser_t *parser){
+
+  list_t *new_lst;
+  token_t *t;
+
+#ifdef __DEBUG__
+  printf("parser_parse_asm\n");
+#endif
+  new_lst = make_null();
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  if(!IS_LPAREN(t)){
+	exit(1);
+  }
+
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  if(!IS_STRING(t)){
+	exit(1);
+  }
+
+  new_lst = add_string(new_lst,TOKEN_GET_STR(t));
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  if(!IS_RPAREN(t)){
+	exit(1);
+  }
 
   return new_lst;
 }

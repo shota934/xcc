@@ -104,7 +104,8 @@ enum token_type_t {
   TOKEN_INLINE,
   TOKEN_ATTRIBUTE,
   TOKEN_DO,
-  TOKEN_EOT
+  TOKEN_EOT,
+  TOKEN_ASM
 };
 
 struct token_t {

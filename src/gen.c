@@ -204,6 +204,7 @@ static list_t *gen_struct_decl(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_struct_def(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_enum(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_union(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_asm(gen_info_t *gi,env_t *env,list_t *lst);
 static integer_t gen_members(gen_info_t *gi,env_t *env,list_t *lst, int offset);
 static integer_t get_operand_size(list_t *lst);
 static integer_t calc_mem_offset(list_t *lst);
@@ -1011,6 +1012,8 @@ static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 	val = gen_llabel(gi,cdr(lst));
   } else if(STRCMP(symbol,GOTO)){
 	val = gen_goto(gi,env,cdr(lst));
+  } else if(STRCMP(symbol,ASM)){
+	val = gen_asm(gi,env,cdr(lst));
   } else {
 	if(IS_ASSIGN(gi)){
 	  val = lookup_symbol(gi,env,lst);
@@ -3379,6 +3382,30 @@ static list_t *gen_union(gen_info_t *gi,env_t *env,list_t *lst){
   val = add_symbol(val,name);
 
   return val;
+}
+
+static list_t *gen_asm(gen_info_t *gi,env_t *env,list_t *lst){
+
+  string_t code;
+  string_t p;
+  int len;
+
+#ifdef __DEBUG__
+  printf("gen_asm\n");
+#endif
+
+  code = (string_t)car(lst);
+  p = code;
+  p++;
+
+  len = STRLEN(p);
+  p += len - 1;
+  *p = NULL_CHAR;
+  p = code;
+  p++;
+  EMIT(gi,"%s",p);
+
+  return make_null();
 }
 
 static integer_t gen_members(gen_info_t *gi,env_t *env,list_t *lst, int offset){

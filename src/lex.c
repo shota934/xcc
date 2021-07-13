@@ -117,7 +117,8 @@ token_t keywords[] = {
   {TOKEN_QUESTION,"?"},
   {TOKEN_INLINE,"inline"},
   {TOKEN_ATTRIBUTE,"__attribute__"},
-  {TOKEN_DO,"do"}
+  {TOKEN_DO,"do"},
+  {TOKEN_ASM,"asm"},
 };
 
 static char skip(lexer_t *lex);

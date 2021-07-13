@@ -85,3 +85,5 @@
 #define EXTERN          "extern"
 #define TYPEDEF         "typedef"
 #define RESTRICT        "restrict"
+
+#define ASM             "asm"
