@@ -15,6 +15,7 @@
 //----
 
 #define ARRAY         "[]"
+#define ARRAY_LIST    "array-list"
 #define FUNC          "FUNC"
 #define FUNC_CALL     "func-call"
 #define FUNC_DEF      "func-def"
@@ -200,6 +201,10 @@ static list_t *parser_parse_subdirdcl(parser_t *parser);
 static list_t *parser_parse_dirdclvar(parser_t *parser,list_t *var);
 
 static list_t *parser_parse_initializer(parser_t *parser);
+static list_t *parser_parse_array_initialyzer(parser_t *parser);
+static list_t *parser_parse_initialye_value(parser_t *parser);
+static list_t *parser_parse_initialyze_value(parser_t *parser);
+
 static list_t *parser_parse_block_items(parser_t *parser);
 static list_t *parser_parse_block_item(parser_t *parser);
 static list_t *parser_parse_ternary(parser_t *parser);
@@ -1922,14 +1927,56 @@ static list_t *parser_parse_subdirdcl(parser_t *parser){
 static list_t *parser_parse_initializer(parser_t *parser){
   
   list_t *new_lst;
+  token_t *t;
 #ifdef __DEBUG__
   printf("parser_parse_initializer\n");
 #endif
-  
-  new_lst = parser_parse_cexpr(parser);
+
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  if(IS_LBRACE(t)){
+	new_lst = parser_parse_array_initialyzer(parser);
+	new_lst = add_list(make_null(),new_lst);
+	new_lst = add_symbol(new_lst,ARRAY_LIST);
+	new_lst = add_list(make_null(),new_lst);
+  } else {
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+	new_lst = parser_parse_cexpr(parser);
+  }
   
   return new_lst;
 
+}
+
+static list_t *parser_parse_array_initialyzer(parser_t *parser){
+
+  list_t *new_lst;
+  token_t *t;
+#ifdef __DEBUG__
+  printf("parser_parse_array_initialyzer\n");
+#endif
+
+  new_lst = parser_parse_initialyze_value(parser);
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  if(IS_RBRACE(t)){
+	return new_lst;
+  } else if(IS_COMMA(t)){
+	return concat(new_lst,parser_parse_array_initialyzer(parser));
+  } else {
+	exit(1);
+  }
+}
+
+static list_t *parser_parse_initialyze_value(parser_t *parser){
+
+  list_t *new_lst;
+
+#ifdef __DEBUG__
+  printf("parser_parse_initialyze_value\n");
+#endif
+
+  new_lst = parser_parse_cexpr(parser);
+  
+  return new_lst;
 }
 
 static int is_dclvar(list_t *lst){

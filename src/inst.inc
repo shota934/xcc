@@ -31,6 +31,7 @@
 #define GREATER_EQUAL ">="
 #define NOT_EQUAL     "!="
 #define ARRAY         "[]"
+#define ARRAY_LIST    "array-list"
 #define FUNC_CALL     "func-call"
 #define ADDRESS       "&"
 #define AND           "&"
