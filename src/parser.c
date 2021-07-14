@@ -1969,12 +1969,19 @@ static list_t *parser_parse_array_initialyzer(parser_t *parser){
 static list_t *parser_parse_initialyze_value(parser_t *parser){
 
   list_t *new_lst;
+  token_t *t;
 
 #ifdef __DEBUG__
   printf("parser_parse_initialyze_value\n");
 #endif
 
-  new_lst = parser_parse_cexpr(parser);
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  if(IS_LBRACE(t)){
+	new_lst = add_list(make_null(),parser_parse_array_initialyzer(parser));
+  } else {
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+	new_lst = parser_parse_cexpr(parser);
+  }
   
   return new_lst;
 }
