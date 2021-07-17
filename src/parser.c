@@ -1367,8 +1367,16 @@ static list_t *parser_parse_if(parser_t *parser){
   
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_ELSE(t)){
-    list_t *alt_stmts = parser_parse_else(parser);
-    new_lst = concat(new_lst,alt_stmts);
+	t = lexer_get_token(PARSER_GET_LEX(parser));
+	if(IS_IF(t)){
+	  alt_stmts = parser_parse_if(parser);
+	  alt_stmts = add_symbol(alt_stmts,TOKEN_GET_STR(t));
+	  alt_stmts = add_list(make_null(),alt_stmts);
+	} else {
+	  lexer_put_token(PARSER_GET_LEX(parser),t);
+	  alt_stmts = parser_parse_else(parser);
+	}
+	new_lst = concat(new_lst,alt_stmts);
   } else {
     lexer_put_token(PARSER_GET_LEX(parser),t);
   }
