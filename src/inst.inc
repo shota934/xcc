@@ -88,3 +88,4 @@
 #define RESTRICT        "restrict"
 
 #define ASM             "asm"
+#define BLOCK           "block"

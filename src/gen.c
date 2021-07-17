@@ -194,6 +194,8 @@ static list_t *gen_increment_assign(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_cast(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_ternary(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_array_list(gen_info_t *gi,env_t *env,list_t *lst);
+
+static list_t *gen_block(gen_info_t *gi,env_t *env,list_t *lst);
 static int gen_array_values(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cnt,int size);
 static int gen_array_value(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cnt,int size);
 static void gen_cast_char(gen_info_t *gi,type_t src_type);
@@ -1035,6 +1037,8 @@ static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 	val = gen_asm(gi,env,cdr(lst));
   } else if(STRCMP(symbol,ARRAY_LIST)){
 	val = gen_array_list(gi,env,cdr(lst));
+  } else if(STRCMP(symbol,BLOCK)){
+	val = gen_block(gi,env,cdr(lst));
   } else {
 	if(IS_ASSIGN(gi)){
 	  val = lookup_symbol(gi,env,lst);
@@ -3190,6 +3194,18 @@ static list_t *gen_array_list(gen_info_t *gi,env_t *env,list_t *lst){
   cnt = select_size(gi,env,SYMBOL_GET_TYPE_LST(sym),TRUE);
   gen_array_values(gi,env,car(lst),0,cnt,size);
   val =  make_null();
+
+  return val;
+}
+
+static list_t *gen_block(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+#ifdef __DEBUG__
+  printf("gen_block");
+#endif
+
+  val = gen_body(gi,extend_env(env),car(lst));
 
   return val;
 }

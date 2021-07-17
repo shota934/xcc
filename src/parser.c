@@ -33,6 +33,7 @@
 #define TYPE_DEF      "typedef"
 #define CAST          "cast"
 #define TYPE          "type"
+#define BLOCK         "block"
 
 #define STATIC          "static"
 #define REGISTER        "register"
@@ -207,6 +208,8 @@ static list_t *parser_parse_initialyze_value(parser_t *parser);
 
 static list_t *parser_parse_block_items(parser_t *parser);
 static list_t *parser_parse_block_item(parser_t *parser);
+static list_t *parser_parse_block(parser_t *parser);
+
 static list_t *parser_parse_ternary(parser_t *parser);
 
 static bool_t is_type_qualifier(token_t *t);
@@ -833,6 +836,27 @@ static list_t *parser_parse_block_item(parser_t *parser){
   return new_lst;
 }
 
+static list_t *parser_parse_block(parser_t *parser){
+
+  list_t *new_lst;
+  token_t *t;
+#ifdef __DEBUG__
+  printf("parser_parse_block\n");
+#endif
+
+  new_lst = parser_parse_block_items(parser);
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  if(!IS_RBRACE(t)){
+	exit(1);
+  }
+
+  new_lst = add_list(make_null(),new_lst);
+  new_lst = add_symbol(new_lst,BLOCK);
+  new_lst = add_list(make_null(),new_lst);
+
+  return new_lst;
+}
+
 static list_t *parser_parse_ternary(parser_t *parser){
 
   list_t *new_lst;
@@ -939,6 +963,8 @@ static list_t *parser_parse_stmt(parser_t *parser){
 	new_lst = concat(new_lst,parser_parse_asm(parser));
   } else if(IS_END_T(t)){
 	new_lst = make_null();
+  } else if(IS_LBRACE(t)){
+	new_lst = parser_parse_block(parser);
   } else {
 	if(IS_LETTER(t)){
 	  token_t *tt = lexer_get_token(PARSER_GET_LEX(parser));
@@ -979,7 +1005,6 @@ static list_t *parser_parse_stmt(parser_t *parser){
   new_lst = add_list(make_null(),new_lst);
   t = lexer_get_token(PARSER_GET_LEX(parser));
   new_lst = make_keyword(new_lst,ARRAY);
-  //new_lst = add_list(make_null(),new_lst);
   
   return new_lst;
 }
@@ -1355,13 +1380,10 @@ static list_t *parser_parse_if(parser_t *parser){
 
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_LBRACE(t)){
-    seq_stmts = add_list(make_null(),parser_parse_block_items(parser));
-    t = lexer_get_token(PARSER_GET_LEX(parser));;
-    if(!IS_RBRACE(t)){
-      exit(1);
-    }
+    seq_stmts = add_list(make_null(),parser_parse_block(parser));
   } else {
-    seq_stmts = add_list(make_null(),parser_parse_block_item(parser));
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+    seq_stmts = add_list(make_null(),parser_parse_stmt(parser));
   }
   new_lst = concat(new_lst,seq_stmts);
   
@@ -1392,13 +1414,10 @@ static list_t *parser_parse_else(parser_t *parser){
   new_lst = make_null();
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_LBRACE(t)){
-    new_lst = add_list(make_null(),parser_parse_block_items(parser));
-    t = lexer_get_token(PARSER_GET_LEX(parser));
-    if(!IS_RBRACE(t)){
-      exit(1);
-    }
+    new_lst = add_list(make_null(),parser_parse_block(parser));
   } else {
-    new_lst = add_list(make_null(),parser_parse_block_item(parser));
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+    new_lst = add_list(make_null(),parser_parse_stmt(parser));
   }
   
   return new_lst;
@@ -1443,15 +1462,11 @@ static list_t *parser_parse_while(parser_t *parser){
   }
   
   t = lexer_get_token(PARSER_GET_LEX(parser));
-  if(!IS_LBRACE(t)){
-   
-  }
-
-  items = parser_parse_block_items(parser);
-
-  t = lexer_get_token(PARSER_GET_LEX(parser));
-  if(!IS_RBRACE(t)){
-    
+  if(IS_LBRACE(t)){
+	items = add_list(make_null(),parser_parse_block(parser));
+  } else {
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+	items = add_list(make_null(),parser_parse_stmt(parser));
   }
   
   new_lst = concat(cond,items);
@@ -1471,16 +1486,12 @@ static list_t *parser_parse_do_while(parser_t *parser){
 #endif
 
   t = lexer_get_token(PARSER_GET_LEX(parser));
-  if(!IS_LBRACE(t)){
-
+  if(IS_LBRACE(t)){
+	stmt = add_list(make_null(),parser_parse_block(parser));
+  } else {
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+	stmt = add_list(make_null(),parser_parse_stmt(parser));
   }
-
-  stmt = add_list(make_null(),parser_parse_block_items(parser));
-  t = lexer_get_token(PARSER_GET_LEX(parser));
-  if(!IS_RBRACE(t)){
-
-  }
-
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_WHILE(t)){
 
@@ -1642,13 +1653,8 @@ static list_t *parser_parse_for(parser_t *parser){
     
   }
 
-  items = add_list(make_null(),parser_parse_block_items(parser));
+  items = add_list(make_null(),parser_parse_block(parser));
   new_lst = concat(new_lst,items);
-  
-  t = lexer_get_token(PARSER_GET_LEX(parser));
-  if(!IS_RBRACE(t)){
-    
-  }
 
   return new_lst;
 }
