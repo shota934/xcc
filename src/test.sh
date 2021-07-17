@@ -85,5 +85,6 @@ try 0   test/test_sizeof_arr.c       "Passed test_sizeof_arr."
 try 0   test/test_do_while.c         "Passed test_do_while."
 try 0   test/test_goto.c             "Passed test_goto."
 try 0   test/test_asm.c              "Passed test_asm."
+try 0   test/test_double_array.c     "Passed test_double_array."
 
 echo "Passed all Test cases."
