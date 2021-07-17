@@ -393,60 +393,68 @@ symbol_t *lookup_member(env_t *env,string_t name){
 type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 
   string_t name;
+  list_type_t type;
 
 #ifdef __DEBUG__
   printf("conv_type\n");
 #endif
 
-  if(IS_NULL_LIST(type_lst)){
+  type = LIST_GET_TYPE(type_lst);
+  switch(type){
+  case NULL_LIST:
 	exit(1);
-  } else if(IS_INTEGER(type_lst)){
+	break;
+  case INTEGER:
 	return conv_type(env,cdr(type_lst),lst);
-  }
-  
-  name = car(type_lst);
-  if(STRCMP(name,CHAR)){
-	return TYPE_CHAR;
-  } else if(STRCMP(name,SHORT)){
-	return TYPE_SHORT;
-  } else if(STRCMP(name,INT)){
-	return TYPE_INT;
-  } else if(STRCMP(name,LONG)){
-	return TYPE_LONG;
-  } else if(STRCMP(name,UNSIGNED)){
-	return TYPE_UNSIGNED;
-  } else if(STRCMP(name,SIGNED)){
-	return TYPE_SIGNED;
-  } else if(STRCMP(name,VOID)){
-	return TYPE_VOID;
-  } else if(STRCMP(name,POINTER)){
-	return TYPE_POINTER;
-  } else if(STRCMP(name,ARRAY)){
-	if(IS_NULL_LIST(lst)){
-	  return TYPE_ARRAY;
-	}
-	return conv_type(env,cdr(type_lst),lst);
-  } else {
-	symbol_t *sym;
-	sym = lookup_obj(env,name);
-	if(!sym){
-	  exit(1);
-	}
+	break;
+  case LIST:
+	return conv_type(env,car(type_lst),lst);
+	break;
+  default:
+	name = car(type_lst);
+	if(STRCMP(name,CHAR)){
+	  return TYPE_CHAR;
+	} else if(STRCMP(name,SHORT)){
+	  return TYPE_SHORT;
+	} else if(STRCMP(name,INT)){
+	  return TYPE_INT;
+	} else if(STRCMP(name,LONG)){
+	  return TYPE_LONG;
+	} else if(STRCMP(name,UNSIGNED)){
+	  return TYPE_UNSIGNED;
+	} else if(STRCMP(name,SIGNED)){
+	  return TYPE_SIGNED;
+	} else if(STRCMP(name,VOID)){
+	  return TYPE_VOID;
+	} else if(STRCMP(name,POINTER)){
+	  return TYPE_POINTER;
+	} else if(STRCMP(name,ARRAY)){
+	  if(IS_NULL_LIST(lst)){
+		return TYPE_ARRAY;
+	  }
+	  return conv_type(env,cdr(type_lst),lst);
+	} else {
+	  symbol_t *sym;
+	  sym = lookup_obj(env,name);
+	  if(!sym){
+		exit(1);
+	  }
 	
-	switch(SYMBOL_GET_SYM_TYPE(sym)){
-	case TYPE_ENUM:
-	  return SYMBOL_GET_SYM_TYPE(sym);
-	  break;
-	case TYPE_TYPE:
-	  return conv_type(env,SYMBOL_GET_TYPE_LST(sym),lst);
-	  break;
-	default:
-	  printf("name : %s\n",name);
-	  printf("TYPE : %d\n",SYMBOL_GET_SYM_TYPE(sym));
-	  break;
+	  switch(SYMBOL_GET_SYM_TYPE(sym)){
+	  case TYPE_ENUM:
+		return SYMBOL_GET_SYM_TYPE(sym);
+		break;
+	  case TYPE_TYPE:
+		return conv_type(env,SYMBOL_GET_TYPE_LST(sym),lst);
+		break;
+	  default:
+		printf("name : %s\n",name);
+		printf("TYPE : %d\n",SYMBOL_GET_SYM_TYPE(sym));
+		break;
+	  }
 	}
+	exit(1);
   }
-  exit(1);
 }
 
 

@@ -976,8 +976,10 @@ static list_t *parser_parse_stmt(parser_t *parser){
 #endif
   
   new_lst = parser_parse_cexpr(parser);
+  new_lst = add_list(make_null(),new_lst);
   t = lexer_get_token(PARSER_GET_LEX(parser));
   new_lst = make_keyword(new_lst,ARRAY);
+  //new_lst = add_list(make_null(),new_lst);
   
   return new_lst;
 }

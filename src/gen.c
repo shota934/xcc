@@ -141,15 +141,14 @@ static list_t *gen_mul(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_div(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_div_int(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_div_floating_value(gen_info_t *gi,env_t *env,list_t *lst,type_t type);
-static list_t *gen_array(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym,bool_t recursive);
-static list_t *gen_array_index(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym);
+static list_t *gen_array(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym,bool_t recursive,list_t *type_lst);
+static list_t *gen_array_index(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym,list_t *type_lst);
 static list_t *gen_pointer_op(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym);
 
 static list_t *gen_bin_cmp_op(gen_info_t *gi,env_t *env,list_t *lst);
 
 static list_t *gen_sizeof(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_sizeof_sym(gen_info_t *gi,env_t *env,list_t *lst);
-static list_t *gen_sizeof_sym_sub(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym);
 static list_t *gen_sizeof_expr(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_type(gen_info_t *gi,env_t *env,list_t *lst);
 
@@ -195,7 +194,7 @@ static list_t *gen_increment_assign(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_cast(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_ternary(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_array_list(gen_info_t *gi,env_t *env,list_t *lst);
-static int gen_array_values(gen_info_t *gi,env_t *env,list_t *lst,int cnt,int size);
+static int gen_array_values(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cnt,int size);
 static int gen_array_value(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cnt,int size);
 static void gen_cast_char(gen_info_t *gi,type_t src_type);
 static void gen_cast_int(gen_info_t *gi,type_t src_type);
@@ -224,6 +223,8 @@ static void pop_xmm(gen_info_t *gi,string_t reg);
 
 static list_t *eval_type(gen_info_t *gi,env_t  *env,list_t *lst);
 static integer_t select_size(gen_info_t *gi,env_t  *env,list_t *lst,bool_t flg);
+static list_t *select_array_size(gen_info_t *gi,env_t *env,list_t *lst,int size);
+
 static integer_t select_compound_type(env_t *env,list_t *lst);
 static string_t select_reg(integer_t size);
 static string_t select_reg_c(integer_t size);
@@ -261,6 +262,7 @@ static int calc_mem_alignment(int offset,int size);
 static bool_t is_float_sym(list_t *lst);
 static void conv_ftoi(gen_info_t *gi,list_t *lst);
 static bool_t is_array_type(list_t *lst);
+static int calc_sizeof_dimension(list_t *lst);
 
 gen_info_t *create_gen_info(){
 
@@ -1150,7 +1152,7 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,list_t *lst,symbol_t
   } else {
 	name = car(lst);
 	if(STRCMP(ARRAY,name)){
-	  val = gen_array(gi,env,lst,sym,FALSE);
+	  val = gen_array(gi,env,lst,sym,FALSE,make_null());
 	} else if(STRCMP(ADDRESS,name)){
 	  offset = SYMBOL_GET_OFFSET(sym);
 	  val = add_number(val,offset);
@@ -1816,7 +1818,7 @@ static list_t *gen_div_floating_value(gen_info_t *gi,env_t *env,list_t *lst,type
   return val;
 }
 
-static list_t *gen_array(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym,bool_t recursive){
+static list_t *gen_array(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym,bool_t recursive,list_t *type_lst){
 
   list_t *val;
   string_t name;
@@ -1846,14 +1848,15 @@ static list_t *gen_array(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym,boo
 	  }
 	}
 
+	if(!recursive){
+	  type_lst = SYMBOL_GET_TYPE_LST(sym);
+	}
 	push(gi,"rax");
-	val = gen_array_index(gi,env,cdr(lst),sym);
-
+	val = gen_array_index(gi,env,lst,sym,cdr(cdr(type_lst)));
 	pop(gi,"rax");
 	EMIT(gi,"addq #rax,#rcx");
 	push(gi,"rcx");
-
-	val = concat(val,gen_array(gi,env,cdr(cdr(lst)),sym,TRUE));
+	val = concat(val,gen_array(gi,env,cdr(cdr(lst)),sym,TRUE,cdr(cdr(type_lst))));
 
 	return val;
   }
@@ -1961,22 +1964,25 @@ static list_t *gen_pointer_op(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sy
   return val;
 }
 
-static list_t *gen_array_index(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym){
+static list_t *gen_array_index(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym,list_t *type_lst){
 
   list_t *val;
+  list_t *l;
   string_t name;
   int offset;
   int size;
+  int v;
 
 #ifdef __DEBUG__
   printf("gen_array_index\n");
 #endif
 
   val = make_null();
-  val = gen_operand(gi,env,lst);
+  val = gen_operand(gi,env,car(cdr(lst)));
+  v = calc_sizeof_dimension(type_lst);
   size = select_size(gi,env,SYMBOL_GET_TYPE_LST(sym),TRUE);
   push(gi,"rax");
-  EMIT(gi,"movq $%d,#rax",size);
+  EMIT(gi,"movq $%d,#rax",size * v);
   pop(gi,"rcx");
   EMIT(gi,"imulq #rcx,#rax");
   EMIT(gi,"movq #rax,#rcx");
@@ -1984,8 +1990,6 @@ static list_t *gen_array_index(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *s
   val = add_number(make_null(),size);
   return add_symbol(val,ARRAY);
 }
-
-
 
 static list_t *gen_sizeof(gen_info_t *gi,env_t *env,list_t *lst){
 
@@ -2047,28 +2051,6 @@ static list_t *gen_sizeof_sym(gen_info_t *gi,env_t *env,list_t *lst){
 	val = make_null();
 	size = calc(gi,lst,env);
 	EMIT(gi,"movq $%d,#rax",size);
-	val = add_number(val,SYMBOL_GET_SIZE(sym));
-  }
-
-  return val;
-}
-
-static list_t *gen_sizeof_sym_sub(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym){
-
-  list_t *val;
-  list_t *type;
-  int size;
-#ifdef __DEBUG__
-  printf("gen_sizeof_sym_sub\n");
-#endif
-
-  type = SYMBOL_GET_TYPE_LST(sym);
-  val = make_null();
-  if(STRCMP(car(type),ARRAY)){
-	size = select_size(gi,env,cdr(type),TRUE);
-	EMIT(gi,"movq $%d,#rax",size);
-  } else {
-	EMIT(gi,"movq $%d,#rax",SYMBOL_GET_SIZE(sym));
 	val = add_number(val,SYMBOL_GET_SIZE(sym));
   }
 
@@ -3190,7 +3172,7 @@ static list_t *gen_array_list(gen_info_t *gi,env_t *env,list_t *lst){
   list_t *val;
   list_t *lhs_type;
   symbol_t *sym;
-  int len;
+  string_t name;
   int size;
   int cnt;
 
@@ -3198,9 +3180,6 @@ static list_t *gen_array_list(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_array_list\n");
 #endif
 
-  dump_ast(lst);
-  len = length_of_list((list_t *)car(lst));
-  printf("len : %d\n",len);
   lhs_type = gen_info_get_lhs_type(gi);
   sym = lookup_obj(env,car(lhs_type));
   if(!sym){
@@ -3209,24 +3188,35 @@ static list_t *gen_array_list(gen_info_t *gi,env_t *env,list_t *lst){
 
   size = SYMBOL_GET_SIZE(sym);
   cnt = select_size(gi,env,SYMBOL_GET_TYPE_LST(sym),TRUE);
-  gen_array_values(gi,env,car(lst),cnt,size);
+  gen_array_values(gi,env,car(lst),0,cnt,size);
   val =  make_null();
 
   return val;
 }
 
-static int gen_array_values(gen_info_t *gi,env_t *env,list_t *lst,int cnt,int size){
+static int gen_array_values(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cnt,int size){
 
   int val;
+  list_type_t type;
+  string_t name;
 
 #ifdef __DEBUG__
   printf("gen_array_values\n");
 #endif
-  if(IS_NULL_LIST(lst)){
-	val = -cnt;
-  } else {
-	val = gen_array_values(gi,env,cdr(lst),cnt,size);
+
+  type = LIST_GET_TYPE(lst);
+  switch(type){
+  case NULL_LIST:
+	val = (pos >= 0) ? -cnt : pos;
+	break;
+  case LIST:
+	val = gen_array_values(gi,env,cdr(lst),pos,cnt,size);
+	val = gen_array_values(gi,env,car(lst),val,cnt,size);
+	break;
+  default:
+	val = gen_array_values(gi,env,cdr(lst),pos,cnt,size);
 	val = gen_array_value(gi,env,lst,val,cnt,size);
+	break;
   }
 
   return val;
@@ -3243,7 +3233,6 @@ static int gen_array_value(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cnt
 
   v = *(integer_t *)car(lst);
   offset = pos;
-
   EMIT(gi,"%s $%d, %d(#rbp)",select_inst(cnt),v,offset);
 
   return offset - cnt;
@@ -3725,83 +3714,89 @@ static list_t *eval_type(gen_info_t *gi,env_t  *env,list_t *lst){
 
 static integer_t select_size(gen_info_t *gi,env_t  *env,list_t *lst,bool_t flg){
 
-  list_t *type;
   integer_t size;
   symbol_t *sym;
   compound_def_t *com;
+  list_type_t type;
 
 #ifdef __DEBUG__
   printf("select_size\n");
 #endif
 
-  if(IS_NULL_LIST(lst)){
+  type = LIST_GET_TYPE(lst);
+  switch(type){
+  case NULL_LIST:
 	return 1;
-  }
+	break;
+  case LIST:
+	return select_size(gi,env,car(lst),flg) * select_size(gi,env,cdr(lst),flg);
+	break;
+  default:
+	if(STRCMP(car(lst),"*")){
+	  return SIZE;
+	} else if(STRCMP(car(lst),INT)){
+	  return sizeof(int);
+	} else if(STRCMP(car(lst),CHAR)){
+	  return sizeof(char);
+	} else if(STRCMP(car(lst),SHORT)){
+	  return sizeof(short);
+	} else if(STRCMP(car(lst),LONG)){
+	  return sizeof(long);
+	} else if(STRCMP(car(lst),FLOAT)){
+	  return sizeof(float);
+	} else if(STRCMP(car(lst),DOUBLE)){
+	  return sizeof(double);
+	} else if(STRCMP(car(lst),VOID)){
+	  return 1;
+	} else if(STRCMP(car(lst),SIGNED)){
+	  if(IS_NOT_NULL_LIST(lst)){
+		return select_size(gi,env,cdr(lst),FALSE);
+	  } else {
+		return sizeof(signed);
+	  }
+	} else if(STRCMP(car(lst),UNSIGNED)){
+	  if(IS_NOT_NULL_LIST(lst)){
+		return select_size(gi,env,cdr(lst),FALSE);
+	  } else {
+		return sizeof(unsigned);
+	  }
+	} else if(STRCMP(car(lst),ARRAY)){
+	  if(flg){
+		return select_size(gi,env,cdr(cdr(lst)),flg);
+	  } else {
+		size = get_size_of_array(gi,cdr(lst),env);
+		return  size * select_size(gi,env,cdr(cdr(lst)),flg);
+	  }
+	} else if(STRCMP(car(lst),STRUCT_ALLOC)){
+	  return select_compound_type(env,cdr(lst));
+	} else if(STRCMP(car(lst),UNION_ALLOC)){
+	  return select_compound_type(env,cdr(lst));
+	} else if(STRCMP(car(lst),STRUCT)){
+	  return select_compound_type(env,cdr(lst));
+	} else if(STRCMP(car(lst),STRUCT_DEF)){
+	  return select_compound_type(env,cdr(lst));
+	} else if(STRCMP(car(lst),UNION)){
+	  return select_compound_type(env,cdr(lst));
+	} else if(STRCMP(car(lst),UNION_DEF)){
+	  return select_compound_type(env,cdr(lst));
+	} else if(STRCMP(car(lst),ENUM)){
+	  return sizeof(int);
+	} else {
+	  sym = lookup_obj(env,car(lst));
+	  if(!sym){
+		printf("error : %s\n",(string_t)car(lst));
+		exit(1);
+	  }
 
-  if(STRCMP(car(lst),"*")){
-	return SIZE;
-  } else if(STRCMP(car(lst),INT)){
-	return sizeof(int);
-  } else if(STRCMP(car(lst),CHAR)){
-	return sizeof(char);
-  } else if(STRCMP(car(lst),SHORT)){
-	return sizeof(short);
-  } else if(STRCMP(car(lst),LONG)){
-	return sizeof(long);
-  } else if(STRCMP(car(lst),FLOAT)){
-	return sizeof(float);
-  } else if(STRCMP(car(lst),DOUBLE)){
-	return sizeof(double);
-  } else if(STRCMP(car(lst),VOID)){
-	return 1;
-  } else if(STRCMP(car(lst),SIGNED)){
-	if(IS_NOT_NULL_LIST(lst)){
-	  return select_size(gi,env,cdr(lst),FALSE);
-	} else {
-	  return sizeof(signed);
+	  if(sym->obj.type == TYPE_COMPOUND){
+		com = (compound_def_t *)sym;
+		return COMPOUND_TYPE_GET_SIZE(com);
+	  } else {
+		return select_size(gi,env,SYMBOL_GET_TYPE_LST(sym),FALSE);
+	  }
 	}
-  } else if(STRCMP(car(lst),UNSIGNED)){
-	if(IS_NOT_NULL_LIST(lst)){
-	  return select_size(gi,env,cdr(lst),FALSE);
-	} else {
-	  return sizeof(unsigned);
-	}
-  } else if(STRCMP(car(lst),ARRAY)){
-	if(flg){
-	  return select_size(gi,env,cdr(cdr(lst)),flg);
-	} else {
-	  size = get_size_of_array(gi,cdr(lst),env);
-	  return  size * select_size(gi,env,cdr(cdr(lst)),flg);
-	}
-  } else if(STRCMP(car(lst),STRUCT_ALLOC)){
-	return select_compound_type(env,cdr(lst));
-  } else if(STRCMP(car(lst),UNION_ALLOC)){
-	return select_compound_type(env,cdr(lst));
-  } else if(STRCMP(car(lst),STRUCT)){
-	return select_compound_type(env,cdr(lst));
-  } else if(STRCMP(car(lst),STRUCT_DEF)){
-	return select_compound_type(env,cdr(lst));
-  } else if(STRCMP(car(lst),UNION)){
-	return select_compound_type(env,cdr(lst));
-  } else if(STRCMP(car(lst),UNION_DEF)){
-	return select_compound_type(env,cdr(lst));
-  } else if(STRCMP(car(lst),ENUM)){
-	return sizeof(int);
-  } else {
-	sym = lookup_obj(env,car(lst));
-	if(!sym){
-	  printf("error : %s\n",(string_t)car(lst));
-	  exit(1);
-	}
-
-	if(sym->obj.type == TYPE_COMPOUND){
-	  com = (compound_def_t *)sym;
-	  return COMPOUND_TYPE_GET_SIZE(com);
-	} else {
-	  return select_size(gi,env,SYMBOL_GET_TYPE_LST(sym),FALSE);
-	}
+	exit(1);
   }
-  exit(1);
 }
 
 static integer_t select_compound_type(env_t *env,list_t *lst){
@@ -4465,4 +4460,21 @@ static bool_t is_array_type(list_t *lst){
   }
 
   return TRUE;
+}
+
+static int calc_sizeof_dimension(list_t *lst){
+
+  string_t name;
+
+  if(IS_NULL_LIST(lst)){
+	return 1;
+  } else if(IS_SYMBOL(lst)){
+	name = car(lst);
+	if(!STRCMP(name,ARRAY)){
+	  return 1;
+	} else {
+	  return *(int *)car(car(cdr(lst))) * calc_sizeof_dimension(cdr(cdr(lst)));
+	}
+  }
+  exit(1);
 }
