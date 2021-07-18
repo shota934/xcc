@@ -13,7 +13,9 @@
 
 #define LIST_GET_SYMBOL_OFFSET(l) l->obj.symbol.offset
 #define LIST_SET_SYMBOL_OFFSET(l,o) l->obj.symbol.offset = o
-#define LIST_GET_SYMBOL_SRC(l)      l->obj.symbol.src;
+
+#define LIST_GET_SYMBOL_LINE_NO(l) l->obj.symbol.lineno
+#define LIST_GET_SYMBOL_SRC(l)     l->obj.symbol.src
 
 enum list_type_t{
   LIST,

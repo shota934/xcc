@@ -851,7 +851,7 @@ static list_t *parser_parse_block(parser_t *parser){
   }
 
   new_lst = add_list(make_null(),new_lst);
-  new_lst = add_symbol(new_lst,BLOCK);
+  new_lst = make_keyword(new_lst,BLOCK);
   new_lst = add_list(make_null(),new_lst);
 
   return new_lst;
@@ -969,8 +969,8 @@ static list_t *parser_parse_stmt(parser_t *parser){
 	if(IS_LETTER(t)){
 	  token_t *tt = lexer_get_token(PARSER_GET_LEX(parser));
 	  if(IS_COLON(tt)){
-		new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
-		new_lst = add_symbol(new_lst,LABEL);
+		new_lst = make_symbol(new_lst,t);
+		new_lst = make_keyword(new_lst,LABEL);
 	  } else {
 		lexer_put_token(PARSER_GET_LEX(parser),tt);
 		lexer_put_token(PARSER_GET_LEX(parser),t);
@@ -1392,7 +1392,7 @@ static list_t *parser_parse_if(parser_t *parser){
 	t = lexer_get_token(PARSER_GET_LEX(parser));
 	if(IS_IF(t)){
 	  alt_stmts = parser_parse_if(parser);
-	  alt_stmts = add_symbol(alt_stmts,TOKEN_GET_STR(t));
+	  alt_stmts = make_symbol(alt_stmts,t);
 	  alt_stmts = add_list(make_null(),alt_stmts);
 	} else {
 	  lexer_put_token(PARSER_GET_LEX(parser),t);
@@ -1437,7 +1437,7 @@ static list_t *parser_parse_goto(parser_t *parser){
   if(!IS_LETTER(t)){
 
   }
-  new_lst = add_symbol(new_lst,TOKEN_GET_STR(t));
+  new_lst = make_symbol(new_lst,t);
 
   return new_lst;
 }
@@ -1952,7 +1952,7 @@ static list_t *parser_parse_initializer(parser_t *parser){
   if(IS_LBRACE(t)){
 	new_lst = parser_parse_array_initialyzer(parser);
 	new_lst = add_list(make_null(),new_lst);
-	new_lst = add_symbol(new_lst,ARRAY_LIST);
+	new_lst = make_keyword(new_lst,ARRAY_LIST);
 	new_lst = add_list(make_null(),new_lst);
   } else {
 	lexer_put_token(PARSER_GET_LEX(parser),t);
@@ -2223,4 +2223,3 @@ static list_t *make_keyword(list_t *lst,string_t text){
 
   return new_lst;
 }
-

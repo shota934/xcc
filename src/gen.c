@@ -1283,7 +1283,8 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst){
   obj = lookup_obj(env,car(lst));
 
   if(!obj){
-	warn(NO_LINE,"test.c","implicit declaration of function '%s'",(string_t)car(lst));
+	warn(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),
+		 "implicit declaration of function '%s'",(string_t)car(lst));
 	return make_null();
   }
 
@@ -2218,7 +2219,7 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 
   sym = lookup_obj(env,car(lst));
   if(!sym){
-	error(NO_LINE,"test.c","undefined variable %s",(string_t)car(lst));
+	error(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),"undefined variable %s",(string_t)car(lst));
 	return make_null();
   }
 
@@ -2238,7 +2239,7 @@ static list_t *gen_load(gen_info_t *gi,env_t *env,list_t *lst){
 
   obj = (object_t *)lookup_obj(env,car(lst));
   if(!obj){
-	error(NO_LINE,"test.c","undefined variable %s",(string_t)car(lst));
+	error(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),"undefined variable %s",(string_t)car(lst));
 	return make_null();
   }
 
@@ -3733,7 +3734,7 @@ static list_t *eval_type(gen_info_t *gi,env_t  *env,list_t *lst){
 	} else {
 	  sym = lookup_obj(env,car(lst));
 	  if(!sym){
-		error(NO_LINE,"test.c","undefined variable %s",(string_t)car(lst));
+		error(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),"undefined variable %s",(string_t)car(lst));
 		return make_null();
 	  }
 
@@ -3818,7 +3819,7 @@ static integer_t select_size(gen_info_t *gi,env_t  *env,list_t *lst,bool_t flg){
 	} else {
 	  sym = lookup_obj(env,car(lst));
 	  if(!sym){
-		printf("error : %s\n",(string_t)car(lst));
+		error(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),"undefined  type %s ",(string_t)car(lst));
 		exit(1);
 	  }
 
