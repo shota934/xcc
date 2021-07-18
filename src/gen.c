@@ -316,41 +316,51 @@ void init_gen_info(gen_info_t *gi){
 list_t *gen(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
+  list_t *v;
+  list_t *l;
   string_t type;
 
 #ifdef __DEBUG__
   printf("gen\n");
 #endif
-  if(IS_NULL_LIST(lst)){
-	return make_null();
-  }
-  
-  init_gen_info(gi);
-  type = car(car(lst));
-  if(IS_FUNC_DEF(type)){
-	val = gen_funcdef(gi,env,car(lst));
-  } else if(IS_FUNC_DECL(type)){
-	val = gen_funcdecl(gi,env,car(lst));
-  } else if(IS_ENUM(type)){
-	val = gen_enum(gi,env,cdr(car(lst)));
-  } else if(IS_STRUCT_DEF(type)){
-	val = gen_struct_def(gi,env,cdr(car(lst)));
-  } else if(IS_STRUCT_DECL(type)){
-	val = gen_struct_decl(gi,env,cdr(car(lst)));
-  } else if(IS_UNION_DEF(type)){
-	val = gen_union(gi,env,cdr(car(lst)));
-  } else if(IS_TYPEDEF(type)){
-	val = gen_typedef(gi,env,cdr(car(lst)));
-  } else if(STRCMP(DECL_VAR,type)){
-	val = gen_global_var(gi,env,cdr(lst));
-  } else {
-	printf("<--------------\n");
-	DUMP_AST(lst);
-	printf("<--------------\n");
-	exit(1);
-  }
 
-  val = concat(val,gen(gi,env,cdr(lst)));
+  l = lst;
+  val = make_null();
+  
+  while(TRUE){
+
+	if(IS_NULL_LIST(l)){
+	  break;
+	}
+
+	init_gen_info(gi);
+	type = car(car(l));
+	if(IS_FUNC_DEF(type)){
+	  v = gen_funcdef(gi,env,car(l));
+	} else if(IS_FUNC_DECL(type)){
+	  v = gen_funcdecl(gi,env,car(l));
+	} else if(IS_ENUM(type)){
+	  v = gen_enum(gi,env,cdr(car(l)));
+	} else if(IS_STRUCT_DEF(type)){
+	  v = gen_struct_def(gi,env,cdr(car(l)));
+	} else if(IS_STRUCT_DECL(type)){
+	  v = gen_struct_decl(gi,env,cdr(car(l)));
+	} else if(IS_UNION_DEF(type)){
+	  v = gen_union(gi,env,cdr(car(l)));
+	} else if(IS_TYPEDEF(type)){
+	  v = gen_typedef(gi,env,cdr(car(l)));
+	} else if(STRCMP(DECL_VAR,type)){
+	  v = gen_global_var(gi,env,cdr(l));
+	} else {
+	  printf("<--------------\n");
+	  DUMP_AST(l);
+	  printf("<--------------\n");
+	  exit(1);
+	}
+
+	l = cdr(l);
+	val = concat(val,v);
+  }
 
   return val;
 }
