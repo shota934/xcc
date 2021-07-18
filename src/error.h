@@ -8,6 +8,7 @@
 #include "type.h"
 
 void error(int line,string_t name,string_t msg,...);
+void warn(int line,string_t name,string_t msg,...);
 void error_no_info(string_t msg,...);
 
 #endif

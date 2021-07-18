@@ -38,6 +38,7 @@ char *FLOAT_REGS[] = {"xmm0","xmm1","xmm2","xmm3","xmm4","xmm5","xmm6","xmm7"};
 #define SWITCH_TEST "test"
 
 #define LOOP_CONTINUE "next_continue"
+#define NO_LINE -1
 
 #define SIZE sizeof(void *)
 #define EMIT_NO_INDENT(gi,...) emitf(gi,0x00,__VA_ARGS__)
@@ -1270,6 +1271,12 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst){
   }
 
   obj = lookup_obj(env,car(lst));
+
+  if(!obj){
+	warn(NO_LINE,"test.c","implicit declaration of function '%s'",(string_t)car(lst));
+	return make_null();
+  }
+
   if(is_func(obj)){
 	val = gen_call_func(gi,env,(func_t *)obj,lst);
   } else if(is_symbol(obj)){
@@ -2201,7 +2208,8 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 
   sym = lookup_obj(env,car(lst));
   if(!sym){
-	exit(1);
+	error(NO_LINE,"test.c","undefined variable %s",(string_t)car(lst));
+	return make_null();
   }
 
   val = gen_complex_symbol(gi,env,cdr(lst),sym);
@@ -2220,8 +2228,8 @@ static list_t *gen_load(gen_info_t *gi,env_t *env,list_t *lst){
 
   obj = (object_t *)lookup_obj(env,car(lst));
   if(!obj){
-	printf("%s",(string_t)car(lst));
-	exit(1);
+	error(NO_LINE,"test.c","undefined variable %s",(string_t)car(lst));
+	return make_null();
   }
 
   switch(OBJ_GET_SCOPE(obj)){
@@ -3715,8 +3723,8 @@ static list_t *eval_type(gen_info_t *gi,env_t  *env,list_t *lst){
 	} else {
 	  sym = lookup_obj(env,car(lst));
 	  if(!sym){
-		printf("error : %s\n",(string_t)car(lst));
-		exit(1);
+		error(NO_LINE,"test.c","undefined variable %s",(string_t)car(lst));
+		return make_null();
 	  }
 
 	  if(sym->obj.type == TYPE_COMPOUND){

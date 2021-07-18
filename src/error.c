@@ -7,7 +7,10 @@
 #include <stdarg.h>
 #include "error.h"
 
-static void print_error(string_t fmt,va_list arg);
+#define LABEL "\e[31m%s\e[0m: "
+
+static void print_msg(string_t fmt,va_list args);
+
 void error(int line,string_t name,string_t msg,...){
   
   va_list args;
@@ -15,14 +18,32 @@ void error(int line,string_t name,string_t msg,...){
 #ifdef __DEBUG__
   printf("error\n");
 #endif
-  
+
   va_start(args,msg);
-  fprintf(stderr,"%s : %d",name,line);
-  fprintf(stderr,"ERROR");
-  print_error(msg,args);
+  fprintf(stderr,LABEL,"error");
+  fprintf(stderr,"%s : %d : ",name,line);
+  print_msg(msg,args);
   fprintf(stderr,"\n");
   va_end(args);
   
+  return;
+}
+
+void warn(int line,string_t name,string_t msg,...){
+
+  va_list args;
+
+#ifdef __DEBUG__
+  printf("warn\n");
+#endif
+
+  va_start(args,msg);
+  fprintf(stderr,LABEL,"warning");
+  fprintf(stderr,"%s : %d : ",name,line);
+  print_msg(msg,args);
+  fprintf(stderr,"\n");
+  va_end(args);
+
   return;
 }
 
@@ -36,20 +57,20 @@ void error_no_info(string_t msg,...){
 
   va_start(args,msg);
   fprintf(stderr,"ERROR : ");
-  print_error(msg,args);
+  print_msg(msg,args);
   fprintf(stderr,"\n");
   va_end(args);
   
   return;
 }
 
-static void print_error(string_t fmt,va_list arg){
+static void print_msg(string_t fmt,va_list args){
   
 #ifdef __DEBUG__
-  printf("print_error\n");
+  printf("print_msg\n");
 #endif
-  
-  vfprintf(stderr, fmt,arg);
+
+  vfprintf(stderr, fmt,args);
 
   return;
 }
