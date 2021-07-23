@@ -77,6 +77,7 @@ enum scope_t {
   GLOBAL,
   MEMBER,
   ARGMENT,
+  ARGMENT_ON_STACK,
   ENUMLATE,
 };
 

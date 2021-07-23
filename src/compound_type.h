@@ -23,6 +23,7 @@ struct compound_def_t {
   compound_type_t type;
   int size;
   env_t *env;
+  list_t *members;
 };
 
 compound_def_t *create_compound_type_def(type_type_t type,scope_t scope);
