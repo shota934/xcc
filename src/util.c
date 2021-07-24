@@ -428,6 +428,10 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 	  return TYPE_VOID;
 	} else if(STRCMP(name,POINTER)){
 	  return TYPE_POINTER;
+	} else if(STRCMP(name,DOUBLE)){
+	  return TYPE_DOUBLE;
+	} else if(STRCMP(name,FLOAT)){
+		return TYPE_FLOAT;
 	} else if(STRCMP(name,ARRAY)){
 	  if(IS_NULL_LIST(lst)){
 		return TYPE_ARRAY;

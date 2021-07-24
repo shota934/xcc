@@ -433,6 +433,8 @@ static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst){
 	type = analyze_utype(lst,TYPE_INT);
   } else if(STRCMP(name,"float")){
 	type = analyze_utype(lst,TYPE_FLOAT);
+  } else if(STRCMP(name,"double")){
+	type = analyze_utype(lst,TYPE_DOUBLE);
   } else if(STRCMP(name,ARRAY)){
 	type = analyze_array(env,cdr(type_lst),lst);
   } else if(STRCMP(name,STRUCT_ALLOC)){

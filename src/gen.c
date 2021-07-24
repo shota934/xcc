@@ -174,10 +174,11 @@ static list_t *gen_global_load(gen_info_t *gi,env_t *env,list_t *lst,object_t *o
 static list_t *gen_enum_load(gen_info_t *gi,enumdef_t *enumdef);
 
 static int gen_func_parms_size(gen_info_t *gi,env_t *env,list_t *lst);
-static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index,int regs,int len);
+static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index,int regs,int len,bool_t flg);
 static int gen_func_parm_rest(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_func_parms(gen_info_t *gi,env_t *env,list_t *lst);
 static void load_parm(gen_info_t *gi,symbol_t *sym,int index);
+static void load_parm_float(gen_info_t *gi,env_t *env,symbol_t *sym,int index);
 static void load_parm_rest(gen_info_t *gi,env_t *env,symbol_t *sym);
 static void load_parm_rest_int(gen_info_t *gi,symbol_t *sym,int offset,int index);
 
@@ -515,6 +516,10 @@ static int gen_info_get_pos(gen_info_t *gi){
 
 static void gen_info_add_stack_pos(gen_info_t *gi,int pos){
 
+  if(pos == 0){
+	return;
+  }
+
   gi->stack_pos += pos;
   if(pos < 0){
 	EMIT(gi,"addq $%d,%rsp",-pos);
@@ -851,8 +856,8 @@ static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst){
   l = make_label(gi);
   EMIT(gi,".data");
   gen_label(gi,l);
-  float fval= strtof(car(lst),NULL);
-  EMIT(gi,".quad %lu",*(unsigned int *)&fval);
+  double fval = strtod(car(lst),NULL);
+  EMIT(gi,".quad %lu",*(unsigned long *)&fval);
   EMIT(gi,".text");
   EMIT(gi,"movsd %s(#rip), #xmm0", l);
 
@@ -1152,6 +1157,7 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,list_t *lst){
   if(IS_NULL_LIST(r)){
 	val = r;
   } else {
+	dump_ast(l);
 	val = gen_assign_inst(gi,l);
   }
 
@@ -1452,14 +1458,18 @@ static int gen_call_args_on_stack(gen_info_t *gi,env_t *env,list_t *lst){
   p = car(cdr(lst));
   rest = length_of_list(p);
   area += rest * SIZE;
+  while(IS_NOT_NULL_LIST(p)){
+	arg = car(p);
+	gen_operand(gi,env,arg);
+	push_xmm(gi,"xmm0");
+	p = cdr(p);
+  }
 
-  //
+  // int
   p = car(cdr(cdr(lst)));
-  area += rest * SIZE;
-
   rest = length_of_list(p);
   area += rest * SIZE;
-  for(p = car(cdr(cdr(lst))); IS_NOT_NULL_LIST(p); p = cdr(p)){
+  while(IS_NOT_NULL_LIST(p)){
 	arg = car(p);
 	v = gen_operand(gi,env,arg);
 	size = *(integer_t *)car(v);
@@ -1467,6 +1477,7 @@ static int gen_call_args_on_stack(gen_info_t *gi,env_t *env,list_t *lst){
 	  EMIT(gi,"%s #%s,#%s",select_movs_inst(size),select_reg(size),"rax");
 	}
 	push(gi,"rax");
+	p = cdr(p);
   }
 
   return area;
@@ -1535,6 +1546,7 @@ static list_t *gen_call_float_args(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_call_float_args\n");
 #endif
 
+  val = make_null();
   len = length_of_list(lst);
   if(len > sizeof(FLOAT_REGS) / sizeof(FLOAT_REGS[0])){
 	regs = sizeof(FLOAT_REGS) / sizeof(FLOAT_REGS[0]);
@@ -2635,14 +2647,15 @@ static list_t *gen_func_parms(gen_info_t *gi,env_t *env,list_t *lst){
   len = length_of_list(int_lst);
   gen_info_add_no_align_localarea(gi,localarea);
   for(p = int_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
-	gen_func_parm(gi,env,car(p),i,regs,len);
+	gen_func_parm(gi,env,car(p),i,regs,len,FALSE);
 	i++;
   }
 
+  i = 0;
   len = length_of_list(float_lst);
   regs = sizeof(FLOAT_REGS) / sizeof(FLOAT_REGS[0]);
   for(p = float_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
-	//gen_func_parm(gi,env,car(p),i,len);
+	gen_func_parm(gi,env,car(p),i,regs,len,TRUE);
 	i++;
   }
 
@@ -2690,7 +2703,7 @@ static int gen_func_parms_size(gen_info_t *gi,env_t *env,list_t *lst){
   return localarea;
 }
 
-static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index,int regs,int len){
+static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index,int regs,int len,bool_t flg){
 
   symbol_t *sym;
   string_t name;
@@ -2700,7 +2713,11 @@ static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index,int reg
 
   if(index < regs){
 	sym = factory_symbol(gi,env,cdr(lst),ARGMENT);
-	load_parm(gi,sym,index);
+	if(flg){
+	  load_parm_float(gi,env,sym,index);
+	} else {
+	  load_parm(gi,sym,index);
+	}
   } else {
 	sym = factory_symbol(gi,env,cdr(lst),ARGMENT_ON_STACK);
   }
@@ -2748,6 +2765,29 @@ static void load_parm(gen_info_t *gi,symbol_t *sym,int index){
 	break;
   default:
 	EMIT(gi,"movq #%s,%d(#rbp)",REGS_64[index],SYMBOL_GET_OFFSET(sym));
+	break;
+  }
+
+  return;
+}
+
+static void load_parm_float(gen_info_t *gi,env_t *env,symbol_t *sym,int index){
+
+  int size;
+#ifdef __DEBUG__
+  printf("load_parm_float\n");
+#endif
+
+  size = SYMBOL_GET_SIZE(sym);
+  switch(size){
+  case 4:
+	EMIT(gi,"movss #%s,%d(#rbp)",FLOAT_REGS[index],SYMBOL_GET_OFFSET(sym));
+	break;
+  case 8:
+	EMIT(gi,"movsd #%s,%d(#rbp)",FLOAT_REGS[index],SYMBOL_GET_OFFSET(sym));
+	break;
+  default:
+	exit(1);
 	break;
   }
 
@@ -4750,6 +4790,10 @@ static bool_t is_float_sym(list_t *lst){
   }
 
   if(TYPE_FLOAT == get_type(lst)){
+	return TRUE;
+  }
+
+  if(TYPE_DOUBLE == get_type(lst)){
 	return TRUE;
   }
 
