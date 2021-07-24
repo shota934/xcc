@@ -177,7 +177,7 @@ static type_t check_op_type_flot(){
   printf("check_op_type_flot\n");
 #endif
 
-  return TYPE_FLOAT;
+  return TYPE_DOUBLE;
 }
 
 static type_t check_arith_op(env_t *env,list_t *lst){

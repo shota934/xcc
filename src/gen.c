@@ -847,6 +847,8 @@ static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
   string_t l;
+  double dfval;
+  float sfval;
 
 #ifdef __DEBUG__
   printf("gen_floating_point\n");
@@ -856,10 +858,24 @@ static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst){
   l = make_label(gi);
   EMIT(gi,".data");
   gen_label(gi,l);
-  double fval = strtod(car(lst),NULL);
-  EMIT(gi,".quad %lu",*(unsigned long *)&fval);
-  EMIT(gi,".text");
-  EMIT(gi,"movsd %s(#rip), #xmm0", l);
+  switch(gi->assign_type){
+  case TYPE_DOUBLE:
+	dfval = strtod(car(lst),NULL);
+	EMIT(gi,".quad %lu",*(unsigned long *)&dfval);
+	EMIT(gi,".text");
+	EMIT(gi,"movsd %s(#rip), #xmm0", l);
+	val = add_number(make_null(),sizeof(double));
+	break;
+  case TYPE_FLOAT:
+	sfval = strtof(car(lst),NULL);
+	EMIT(gi,".long %lu",*(unsigned int *)&sfval);
+	EMIT(gi,".text");
+	EMIT(gi,"movss %s(#rip), #xmm0", l);
+	val = add_number(make_null(),sizeof(float));
+	break;
+  default:
+	break;
+  }
 
   return val;
 }
@@ -1151,6 +1167,7 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,list_t *lst){
   if(is_name(l)){
 	l = gen_operand(gi,env,l);
   }
+
   ASSIGN_OFF(gi);
   r = gen_operand(gi,env,cdr(lst));
   gen_info_set_lhs_type(gi,make_null());
@@ -1160,6 +1177,7 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,list_t *lst){
 	dump_ast(l);
 	val = gen_assign_inst(gi,l);
   }
+  gi->assign_type = TYPE_UNKNOWN;
 
   return val;
 }
@@ -1829,7 +1847,7 @@ static list_t *gen_op(gen_info_t *gi,env_t *env,list_t *lst,char op){
   case TYPE_POINTER:
 	val = gen_bin_op(gi,env,cdr(lst),op);
 	break;
-  case TYPE_FLOAT:
+  case TYPE_DOUBLE:
 	val = gen_fp_op(gi,env,cdr(lst),type,op);
 	break;
   default:
@@ -2432,6 +2450,7 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 
   symbol_t *sym;
   list_t *val;
+  type_t type;
 
 #ifdef __DEBUG__
   printf("lookup_symbol\n");
@@ -2443,6 +2462,7 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 	return make_null();
   }
 
+  gi->assign_type = conv_type(env,tail(SYMBOL_GET_TYPE_LST(sym)),make_null());
   val = gen_complex_symbol(gi,env,cdr(lst),sym);
 
   return val;
@@ -3452,7 +3472,7 @@ static list_t *gen_cast(gen_info_t *gi,env_t *env,list_t *lst){
 	src_type = TYPE_INT;
 	break;
   case DECIMAL:
-	src_type = TYPE_FLOAT;
+	src_type = TYPE_DOUBLE;
 	break;
   case SYMBOL:
 	symbol = lookup_obj(env,car(name));

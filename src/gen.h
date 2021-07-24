@@ -34,6 +34,7 @@ struct gen_info_t {
   bool_t eval_type;
   list_t *lhs_type;
   int offset_onstack;
+  type_t assign_type;
 };
 
 gen_info_t *create_gen_info();

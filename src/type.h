@@ -67,7 +67,8 @@ enum type_t {
   TYPE_UNSIGNED,
   TYPE_SIGNED,
   TYPE_ARRAY,
-  TYPE_VOID
+  TYPE_VOID,
+  TYPE_UNKNOWN
 };
 
 
