@@ -35,6 +35,8 @@ struct gen_info_t {
   list_t *lhs_type;
   int offset_onstack;
   type_t assign_type;
+  int int_regs;
+  int float_regs;
 };
 
 gen_info_t *create_gen_info();
