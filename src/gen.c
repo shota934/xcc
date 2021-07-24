@@ -164,8 +164,6 @@ static list_t *gen_type(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *categorize(env_t *env,list_t *lst);
 static list_t *categorize_type(env_t *env,list_t *lst);
 
-static void gen_save_regs(gen_info_t *gi,list_t *lst);
-static void gen_restore_regs(gen_info_t *gi,list_t *lst,int osa);
 static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_load(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_local_load(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym);
@@ -874,6 +872,11 @@ static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst){
 	val = add_number(make_null(),sizeof(float));
 	break;
   default:
+	dfval = strtod(car(lst),NULL);
+	EMIT(gi,".quad %lu",*(unsigned long *)&dfval);
+	EMIT(gi,".text");
+	EMIT(gi,"movsd %s(#rip), #xmm0", l);
+	val = add_number(make_null(),sizeof(double));
 	break;
   }
 
@@ -1174,7 +1177,6 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,list_t *lst){
   if(IS_NULL_LIST(r)){
 	val = r;
   } else {
-	dump_ast(l);
 	val = gen_assign_inst(gi,l);
   }
   gi->assign_type = TYPE_UNKNOWN;
@@ -1341,9 +1343,6 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst){
 
   cl = categorize(env,args);
 
-  // Save registers
-  gen_save_regs(gi,cl);
-
   // Parameter Passing
   osa = gen_call_args(gi,env,cl);
 
@@ -1369,9 +1368,6 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst){
   if(fop){
 	gen_info_add_stack_pos(gi,-8);
   }
-
-  // Restore registers
-  gen_restore_regs(gi,cl,osa);
 
   return val;
 }
@@ -1657,71 +1653,6 @@ static void pop_float(gen_info_t *gi,int len){
   printf("pop_float\n");
 #endif
 
-  for(i = len - 1; i >= 0; i--){
-	pop_xmm(gi,FLOAT_REGS[i]);
-  }
-
-  return;
-}
-
-static void gen_save_regs(gen_info_t *gi,list_t *lst){
-
-  int i;
-  list_t *p;
-  int len;
-  int diff;
-
-#ifdef __DEBUG__
-  printf("gen_save_regs\n");
-#endif
-
-  p = car(lst);
-  len = length_of_list(p);
-  if(len > sizeof(REGS_64) / sizeof(REGS_64[0])){
-	len = sizeof(REGS_64) / sizeof(REGS_64[0]);
-  }
-
-  for(i = 0; i < len; i++){
-	push(gi,REGS_64[i]);
-  }
-
-  p = car(cdr(lst));
-  len = length_of_list(p);
-  for(i = 0; i < len; i++){
-	push_xmm(gi,FLOAT_REGS[i]);
-  }
-
-  return;
-}
-
-static void gen_restore_regs(gen_info_t *gi,list_t *lst,int osa){
-
-  list_t *p;
-  int i;
-  int len;
-  int rest;
-#ifdef __DEBUG__
-  printf("gen_restore_regs\n");
-#endif
-
-  gen_info_add_stack_pos(gi,-osa);
-
-  p = car(lst);
-  len = length_of_list(p);
-  if(len > sizeof(REGS_64) / sizeof(REGS_64[0])){
-	rest = len - sizeof(REGS_64) / sizeof(REGS_64[0]);
-	for(i = 0; i < rest; i++){
-	  gen_info_add_localarea(gi,-8);
-	}
-	len = sizeof(REGS_64) / sizeof(REGS_64[0]);
-  }
-
-  for(i = len - 1; i >= 0; i--){
-	pop(gi,REGS_64[i]);
-  }
-
-  p = car(cdr(lst));
-  len = length_of_list(p);
   for(i = len - 1; i >= 0; i--){
 	pop_xmm(gi,FLOAT_REGS[i]);
   }
@@ -2450,7 +2381,7 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 
   symbol_t *sym;
   list_t *val;
-  type_t type;
+  string_t name;
 
 #ifdef __DEBUG__
   printf("lookup_symbol\n");
@@ -2462,7 +2393,13 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 	return make_null();
   }
 
-  gi->assign_type = conv_type(env,tail(SYMBOL_GET_TYPE_LST(sym)),make_null());
+  name = car(tail(SYMBOL_GET_TYPE_LST(sym)));
+  if(STRCMP(name,FLOAT)){
+	gi->assign_type = TYPE_FLOAT;
+  } else if(STRCMP(name,DOUBLE)){
+	gi->assign_type = TYPE_DOUBLE;
+  }
+
   val = gen_complex_symbol(gi,env,cdr(lst),sym);
 
   return val;
@@ -2801,6 +2738,7 @@ static void load_parm_float(gen_info_t *gi,env_t *env,symbol_t *sym,int index){
   size = SYMBOL_GET_SIZE(sym);
   switch(size){
   case 4:
+	EMIT(gi,"cvtsd2ss #%s,#%s",FLOAT_REGS[index],FLOAT_REGS[index]);
 	EMIT(gi,"movss #%s,%d(#rbp)",FLOAT_REGS[index],SYMBOL_GET_OFFSET(sym));
 	break;
   case 8:

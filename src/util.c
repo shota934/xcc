@@ -443,7 +443,7 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 	  if(!sym){
 		exit(1);
 	  }
-	
+
 	  switch(SYMBOL_GET_SYM_TYPE(sym)){
 	  case TYPE_ENUM:
 		return SYMBOL_GET_SYM_TYPE(sym);
