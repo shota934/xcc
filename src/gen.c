@@ -176,9 +176,10 @@ static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index,int reg
 static int gen_func_parm_rest(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_func_parms(gen_info_t *gi,env_t *env,list_t *lst);
 static void load_parm(gen_info_t *gi,symbol_t *sym,int index);
-static void load_parm_float(gen_info_t *gi,env_t *env,symbol_t *sym,int index);
+static void load_parm_float(gen_info_t *gi,symbol_t *sym,int index);
 static void load_parm_rest(gen_info_t *gi,env_t *env,symbol_t *sym);
 static void load_parm_rest_int(gen_info_t *gi,symbol_t *sym,int offset,int index);
+static void load_parm_rest_float(gen_info_t *gi,symbol_t *sym,int offset,int index);
 
 static char *gen_cmp_inst(list_t *lst);
 static void gen_cmp(gen_info_t *gi);
@@ -864,21 +865,21 @@ static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst){
 	dfval = strtod(car(lst),NULL);
 	EMIT(gi,".quad %lu",*(unsigned long *)&dfval);
 	EMIT(gi,".text");
-	EMIT(gi,"movsd %s(#rip), #xmm0", l);
+	EMIT(gi,"movsd %s(#rip), #xmm8", l);
 	val = add_number(make_null(),sizeof(double));
 	break;
   case TYPE_FLOAT:
 	sfval = strtof(car(lst),NULL);
 	EMIT(gi,".long %lu",*(unsigned int *)&sfval);
 	EMIT(gi,".text");
-	EMIT(gi,"movss %s(#rip), #xmm0", l);
+	EMIT(gi,"movss %s(#rip), #xmm8", l);
 	val = add_number(make_null(),sizeof(float));
 	break;
   default:
 	dfval = strtod(car(lst),NULL);
 	EMIT(gi,".quad %lu",*(unsigned long *)&dfval);
 	EMIT(gi,".text");
-	EMIT(gi,"movsd %s(#rip), #xmm0", l);
+	EMIT(gi,"movsd %s(#rip), #xmm8", l);
 	val = add_number(make_null(),sizeof(double));
 	break;
   }
@@ -1211,7 +1212,7 @@ static list_t *gen_assign_inst(gen_info_t *gi,list_t *lst){
   } else if(is_value(lst)){
 	if(is_float_sym(car(lst))){
 	  op = select_inst_fp(*(integer_t *)car(car(lst)));
-	  EMIT(gi,"%s #xmm0,%d(#rbp)",op,*(integer_t *)car(cdr(car(lst))));
+	  EMIT(gi,"%s #xmm8,%d(#rbp)",op,*(integer_t *)car(cdr(car(lst))));
 	} else {
 	  op = select_inst(*(integer_t *)car(car(lst)));
 	  reg = select_reg(*(integer_t *)car(car(lst)));
@@ -1480,7 +1481,7 @@ static int gen_call_args_on_stack(gen_info_t *gi,env_t *env,list_t *lst){
   while(IS_NOT_NULL_LIST(p)){
 	arg = car(p);
 	gen_operand(gi,env,arg);
-	push_xmm(gi,"xmm0");
+	push_xmm(gi,"xmm8");
 	p = cdr(p);
   }
 
@@ -1591,7 +1592,7 @@ static list_t *gen_call_float_args(gen_info_t *gi,env_t *env,list_t *lst){
 	arg = car(p);
 	v = gen_operand(gi,env,arg);
 	val = concat(val,v);
-	push_xmm(gi,"xmm0");
+	push_xmm(gi,"xmm8");
 	gi->float_regs++;
 	float_regs++;
   }
@@ -1618,9 +1619,10 @@ static list_t *gen_call_rest_args(gen_info_t *gi,env_t *env,list_t *lst){
   string_t name;
   int m_offset;
   int offset;
-  int int_regs;
   int size;
+  int int_regs;
   int float_regs;
+  type_t type;
 
 #ifdef __DEBUG__
   printf("gen_call_rest_args\n");
@@ -1628,29 +1630,52 @@ static list_t *gen_call_rest_args(gen_info_t *gi,env_t *env,list_t *lst){
 
   val = make_null();
   int_regs = 0;
+  float_regs = 0;
   for(p = lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
 	name = car(car(p));
 	sym = lookup_obj(env,name);
 	com = lookup_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
 	for(q = com->members; IS_NOT_NULL_LIST(q); q = cdr(q)){
 
-	  if(gi->int_regs >= sizeof(FLOAT_REGS) / sizeof(FLOAT_REGS[0])){
+	  if(gi->int_regs >= sizeof(REGS_64) / sizeof(REGS_64[0])){
 		break;
 	  }
+
+	  if(gi->float_regs >= sizeof(FLOAT_REGS) / sizeof(FLOAT_REGS[0])){
+		break;
+	  }
+
 	  sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(q));
 	  m_offset = SYMBOL_GET_OFFSET(sym_mem);
 	  offset = SYMBOL_GET_OFFSET(sym) + m_offset;
 	  size = SYMBOL_GET_SIZE(sym_mem);
-	  EMIT(gi,"%s %d(#rbp),#%s",select_inst(SYMBOL_GET_SIZE(sym_mem)),
-		   offset,select_reg(size));
-	  if(size < SIZE){
-		EMIT(gi,"%s #%s,#%s",select_movs_inst(size),select_reg(size),"rax");
+	  type = conv_type(env,SYMBOL_GET_TYPE_LST(sym_mem),make_null());
+	  switch(type){
+	  case TYPE_CHAR:
+	  case TYPE_SHORT:
+	  case TYPE_INT:
+	  case TYPE_LONG:
+	  case TYPE_POINTER:
+	  case TYPE_STRING:
+	  case TYPE_ARRAY:
+	  case TYPE_ENUM:
+		EMIT(gi,"%s %d(#rbp),#%s",select_inst(SYMBOL_GET_SIZE(sym_mem)),
+			 offset,select_reg(size));
+		if(size < SIZE){
+		  EMIT(gi,"%s #%s,#%s",select_movs_inst(size),select_reg(size),"rax");
+		}
+		EMIT(gi,"movq #rax,#%s",REGS_64[gi->int_regs]);
+		gi->int_regs++;
+		break;
+	  case TYPE_FLOAT:
+	  case TYPE_DOUBLE:
+		EMIT(gi,"movsd #xmm8,#%s",FLOAT_REGS[gi->float_regs]);
+		gi->float_regs++;
+		break;
+	  default:
+		break;
 	  }
-	  push(gi,"rax");
-	  gi->int_regs++;
-	  int_regs++;
 	}
-	pop_int(gi,int_regs);
   }
 
   val = add_list(make_null(),val);
@@ -1862,16 +1887,16 @@ static list_t *gen_fp_op(gen_info_t *gi,env_t *env,list_t *lst,type_t type,char 
   val = make_null();
   l = gen_operand(gi,env,lst);
   conv_ftoi(gi,cdr(cdr(l)));
-  push_xmm(gi,"xmm0");
+  push_xmm(gi,"xmm8");
   r = gen_operand(gi,env,cdr(lst));
   conv_ftoi(gi,cdr(cdr(r)));
 
-  pop_xmm(gi,"xmm1");
-  EMIT(gi,"%s #xmm0,#xmm1",select_op_fp(op));
-  EMIT(gi,"movsd #xmm1,#xmm0");
+  pop_xmm(gi,"xmm9");
+  EMIT(gi,"%s #xmm8,#xmm9",select_op_fp(op));
+  EMIT(gi,"movsd #xmm9,#xmm8");
 
   if(type == TYPE_FLOAT){
-	EMIT(gi,"cvtsd2ss #xmm0,#xmm0");
+	EMIT(gi,"cvtsd2ss #xmm8,#xmm8");
 	val = add_number(val,sizeof(float));
   } else {
 	val = add_number(val,sizeof(double));
@@ -2019,14 +2044,14 @@ static list_t *gen_div_floating_value(gen_info_t *gi,env_t *env,list_t *lst,type
 
   val = make_null();
   gen_operand(gi,env,lst);
-  push_xmm(gi,"xmm0");
+  push_xmm(gi,"xmm8");
   gen_operand(gi,env,cdr(lst));
-  pop_xmm(gi,"xmm1");
-  EMIT(gi,"divsd #xmm0,#xmm1");
-  EMIT(gi,"movsd #xmm1,#xmm0");
+  pop_xmm(gi,"xmm9");
+  EMIT(gi,"divsd #xmm8,#xmm9");
+  EMIT(gi,"movsd #xmm9,#xmm8");
 
   if(type == TYPE_FLOAT){
-	EMIT(gi,"cvtsd2ss #xmm0,#xmm0");
+	EMIT(gi,"cvtsd2ss #xmm8,#xmm8");
 	val = add_number(val,sizeof(float));
   } else {
 	val = add_number(val,sizeof(double));
@@ -2533,9 +2558,9 @@ static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg){
 	offset = *(integer_t *)car(cdr(car(lst)));
 	if(is_float_sym(car(lst))){
 	  inst = select_inst_fp(size);
-	  EMIT(gi,"%s %d(#rbp),#xmm0",inst,offset);
+	  EMIT(gi,"%s %d(#rbp),#xmm8",inst,offset);
 	  if(size == 4){
-		EMIT(gi,"cvtss2sd #xmm0, #xmm0");
+		EMIT(gi,"cvtss2sd #xmm8, #xmm8");
 	  }
 	  val = add_number(make_null(),get_type(car(lst)));
 	} else {
@@ -2697,7 +2722,7 @@ static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index,int reg
   if(index < regs){
 	sym = factory_symbol(gi,env,cdr(lst),ARGMENT);
 	if(flg){
-	  load_parm_float(gi,env,sym,index);
+	  load_parm_float(gi,sym,index);
 	} else {
 	  load_parm(gi,sym,index);
 	}
@@ -2754,7 +2779,7 @@ static void load_parm(gen_info_t *gi,symbol_t *sym,int index){
   return;
 }
 
-static void load_parm_float(gen_info_t *gi,env_t *env,symbol_t *sym,int index){
+static void load_parm_float(gen_info_t *gi,symbol_t *sym,int index){
 
   int size;
 #ifdef __DEBUG__
@@ -2783,20 +2808,31 @@ static void load_parm_rest(gen_info_t *gi,env_t *env,symbol_t *sym){
   compound_def_t *com;
   list_t *p;
   symbol_t *sym_mem;
+  string_t name;
   int offset;
-  int index;
+  int int_regs;
+  int float_regs;
 
 #ifdef __DEBUG__
   printf("load_parm_rest\n");
 #endif
 
-  index = 0;
+  int_regs = 0;
+  float_regs = 0;
   com = lookup_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
   for(p = com->members; IS_NOT_NULL_LIST(p); p = cdr(p)){
 	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(p));
 	offset = SYMBOL_GET_OFFSET(sym) + SYMBOL_GET_OFFSET(sym_mem);
-	load_parm_rest_int(gi,sym_mem,offset,index);
-	index++;
+
+	name = car(tail(SYMBOL_GET_TYPE_LST(sym_mem)));
+	if(STRCMP(name,FLOAT)
+	   || STRCMP(name,DOUBLE)){
+	  load_parm_rest_float(gi,sym_mem,offset,float_regs);
+	  float_regs++;
+	} else {
+	  load_parm_rest_int(gi,sym_mem,offset,int_regs);
+	  int_regs++;
+	}
   }
 
   return;
@@ -2825,6 +2861,30 @@ static void load_parm_rest_int(gen_info_t *gi,symbol_t *sym,int offset,int index
 	break;
   default:
 	EMIT(gi,"movq #%s,%d(#rbp)",REGS_64[index],offset);
+	break;
+  }
+
+  return;
+}
+
+static void load_parm_rest_float(gen_info_t *gi,symbol_t *sym,int offset,int index){
+
+  int size;
+#ifdef __DEBUG__
+  printf("load_parm_rest_float\n");
+#endif
+
+  size = SYMBOL_GET_SIZE(sym);
+  switch(size){
+  case 4:
+	EMIT(gi,"cvtsd2ss #%s,#%s",FLOAT_REGS[index],FLOAT_REGS[index]);
+	EMIT(gi,"movss #%s,%d(#rbp)",FLOAT_REGS[index],offset);
+	break;
+  case 8:
+	EMIT(gi,"movsd #%s,%d(#rbp)",FLOAT_REGS[index],offset);
+	break;
+  default:
+	exit(1);
 	break;
   }
 
@@ -3032,8 +3092,8 @@ static list_t *gen_struct_assign(gen_info_t *gi,env_t *env,list_t *lst){
 	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
 	m_offset = SYMBOL_GET_OFFSET(sym_mem);
 	size = SYMBOL_GET_SIZE(sym_mem);
+	val = add_number(val,conv_type(env,SYMBOL_GET_TYPE_LST(sym_mem),make_null()));
   }
-
   offset = SYMBOL_GET_OFFSET(sym) + m_offset;
 
   if(!IS_ASSIGN(gi)){
@@ -4793,7 +4853,7 @@ static void conv_ftoi(gen_info_t *gi,list_t *lst){
 
   type = *(type_t *)car(lst);
   if(type == TYPE_INT){
-	EMIT(gi,"cvtsi2sd #rax,#xmm0");
+	EMIT(gi,"cvtsi2sd #rax,#xmm8");
   }
 
   return;
