@@ -17,6 +17,7 @@
 #define COMPOUND_TYPE_GET_TYPE(c,t)     c->type;
 #define COMPOUND_TYPE_GET_SIZE(c)       c->size
 #define COMPOUND_TYPE_GET_ENV(c)        c->env
+#define COMPOUND_TYPE_GET_MEMBERS(c)        c->members
 
 struct compound_def_t {
   object_t obj_type;

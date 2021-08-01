@@ -15,7 +15,7 @@
 //----
 
 #define ARRAY         "[]"
-#define ARRAY_LIST    "array-list"
+#define INIT_LIST    "init-list"
 #define FUNC          "FUNC"
 #define FUNC_CALL     "func-call"
 #define FUNC_DEF      "func-def"
@@ -1952,7 +1952,7 @@ static list_t *parser_parse_initializer(parser_t *parser){
   if(IS_LBRACE(t)){
 	new_lst = parser_parse_array_initialyzer(parser);
 	new_lst = add_list(make_null(),new_lst);
-	new_lst = make_keyword(new_lst,ARRAY_LIST);
+	new_lst = make_keyword(new_lst,INIT_LIST);
 	new_lst = add_list(make_null(),new_lst);
   } else {
 	lexer_put_token(PARSER_GET_LEX(parser),t);

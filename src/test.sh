@@ -88,5 +88,7 @@ try 0   test/test_asm.c              "Passed test_asm."
 try 0   test/test_double_array.c     "Passed test_double_array"
 try 4   test/test_else_if.c          "Passed test_else_if."
 try 6   test/test_pass_strval.c      "Passed test_pass_strval."
+try 0   test/test_init_struct1.c     "Passed test_init_struct1."
+try 0   test/test_init_struct2.c     "Passed test_init_struct2."
 
 echo "Passed all Test cases."

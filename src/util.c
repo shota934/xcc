@@ -431,7 +431,11 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 	} else if(STRCMP(name,DOUBLE)){
 	  return TYPE_DOUBLE;
 	} else if(STRCMP(name,FLOAT)){
-		return TYPE_FLOAT;
+	  return TYPE_FLOAT;
+	} else if(STRCMP(name,STRUCT_ALLOC)){
+	  return TYPE_STRUCT;
+	} else if(STRCMP(name,STRUCT)){
+	  return TYPE_STRUCT;
 	} else if(STRCMP(name,ARRAY)){
 	  if(IS_NULL_LIST(lst)){
 		return TYPE_ARRAY;
@@ -454,9 +458,11 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 	  default:
 		printf("name : %s\n",name);
 		printf("TYPE : %d\n",SYMBOL_GET_SYM_TYPE(sym));
+		exit(1);
 		break;
 	  }
 	}
+	printf("name : %s\n",name);
 	exit(1);
   }
 }
