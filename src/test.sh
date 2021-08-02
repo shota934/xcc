@@ -90,5 +90,6 @@ try 4   test/test_else_if.c          "Passed test_else_if."
 try 6   test/test_pass_strval.c      "Passed test_pass_strval."
 try 0   test/test_init_struct1.c     "Passed test_init_struct1."
 try 0   test/test_init_struct2.c     "Passed test_init_struct2."
+try 0   test/test_arr_str.c          "Passed test_arr_str."
 
 echo "Passed all Test cases."

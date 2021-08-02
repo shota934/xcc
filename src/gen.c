@@ -106,6 +106,7 @@ static list_t *gen_oprand(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_integer(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_char(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_string(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_arr_string(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_ret(gen_info_t *gi);
 static list_t *gen_args(gen_info_t *gi,env_t *env,list_t *lst);
@@ -835,17 +836,56 @@ static list_t *gen_string(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_string\n");
 #endif
 
-  val = make_null();
-  EMIT(gi,".data");
-  l = make_label(gi);
-  gen_label(gi,l);
-  EMIT(gi,".string %s",(string_t)car(lst));
-  EMIT(gi,".text");
-  EMIT(gi,"lea %s(#rip), #rax",l);
+  switch(gi->assign_type){
+  case TYPE_ARRAY:
+	val = gen_arr_string(gi,env,lst);
+	break;
+  default:
+	val = make_null();
+	EMIT(gi,".data");
+	l = make_label(gi);
+	gen_label(gi,l);
+	EMIT(gi,".string %s",(string_t)car(lst));
+	EMIT(gi,".text");
+	EMIT(gi,"lea %s(#rip), #rax",l);
+	val = add_number(val,TYPE_STRING);
+	val = add_number(val,strlen(car(lst)));
+	val = add_number(val,SIZE);
+  }
 
-  val = add_number(val,TYPE_STRING);
-  val = add_number(val,strlen(car(lst)));
-  val = add_number(val,SIZE);
+  return val;
+}
+
+static list_t *gen_arr_string(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+  list_t *lhs_type;
+  symbol_t *sym;
+  string_t str;
+  char *p;
+  int i;
+  int offset;
+  int len;
+
+#ifdef __DEBUG__
+  printf("gen_arr_string\n");
+#endif
+
+  val = make_null();
+  lhs_type = gen_info_get_lhs_type(gi);
+  sym = lookup_obj(env,car(lhs_type));
+  if(!sym){
+	exit(1);
+  }
+
+  str = car(lst);
+  offset = SYMBOL_GET_OFFSET(sym);
+  len = strlen(str);
+  for(p = str + 1; *p != '"'; p++){
+	EMIT(gi,"%s $%d,%d(#rbp)",MOVB,*p,offset);
+	offset++;
+  }
+  EMIT(gi,"%s $%d,%d(#rbp)",MOVB,0x00,offset);
 
   return val;
 }
