@@ -1714,6 +1714,10 @@ static list_t *gen_call_rest_args(gen_info_t *gi,env_t *env,list_t *lst){
 	  }
 
 	  sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(q));
+	  if(!sym_mem){
+		error(LIST_GET_SYMBOL_LINE_NO(q),LIST_GET_SYMBOL_SRC(q),"undefined member '%s' ",(string_t)car(q));
+	  }
+
 	  m_offset = SYMBOL_GET_OFFSET(sym_mem);
 	  offset = SYMBOL_GET_OFFSET(sym) + m_offset;
 	  size = SYMBOL_GET_SIZE(sym_mem);
@@ -2892,6 +2896,9 @@ static void load_parm_rest(gen_info_t *gi,env_t *env,symbol_t *sym){
   com = lookup_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
   for(p = com->members; IS_NOT_NULL_LIST(p); p = cdr(p)){
 	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(p));
+	if(!sym_mem){
+	  error(LIST_GET_SYMBOL_LINE_NO(p),LIST_GET_SYMBOL_SRC(p),"undefined member '%s' ",(string_t)car(p));
+	}
 	offset = SYMBOL_GET_OFFSET(sym) + SYMBOL_GET_OFFSET(sym_mem);
 
 	name = car(tail(SYMBOL_GET_TYPE_LST(sym_mem)));
@@ -3131,6 +3138,7 @@ static list_t *gen_struct_assign(gen_info_t *gi,env_t *env,list_t *lst){
   symbol_t *sym_mem;
   compound_def_t *com;
   list_t *val;
+  list_t *p;
   string_t mname;
   string_t name;
   int offset;
@@ -3159,7 +3167,11 @@ static list_t *gen_struct_assign(gen_info_t *gi,env_t *env,list_t *lst){
 	size = calc_mem_size(val);
 	val = make_null();
   } else {
-	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
+	p = cdr(lst);
+	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(p));
+	if(!sym_mem){
+	  error(LIST_GET_SYMBOL_LINE_NO(p),LIST_GET_SYMBOL_SRC(p),"undefined member '%s' ",(string_t)car(p));
+	}
 	m_offset = SYMBOL_GET_OFFSET(sym_mem);
 	size = SYMBOL_GET_SIZE(sym_mem);
 	val = add_number(val,conv_type(env,SYMBOL_GET_TYPE_LST(sym_mem),make_null()));
@@ -3182,6 +3194,7 @@ static list_t *gen_struct_ref(gen_info_t *gi,env_t *env,list_t *lst){
   symbol_t *sym;
   symbol_t *sym_mem;
   compound_def_t *com;
+  list_t *p;
   int m_offset;
   int size;
   int base;
@@ -3208,7 +3221,11 @@ static list_t *gen_struct_ref(gen_info_t *gi,env_t *env,list_t *lst){
 	size = calc_mem_size(val);
 	val = make_null();
   } else {
-	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
+	p = cdr(lst);
+	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(p));
+	if(!sym){
+	  error(LIST_GET_SYMBOL_LINE_NO(p),LIST_GET_SYMBOL_SRC(p),"undefined member '%s' ",(string_t)car(p));
+	}
 	m_offset = SYMBOL_GET_OFFSET(sym_mem);
 	size = SYMBOL_GET_SIZE(sym_mem);
   }

@@ -56,7 +56,7 @@ void error_no_info(string_t msg,...){
 #endif
 
   va_start(args,msg);
-  fprintf(stderr,"ERROR : ");
+  fprintf(stderr,"error : ");
   print_msg(msg,args);
   fprintf(stderr,"\n");
   va_end(args);
