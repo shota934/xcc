@@ -94,11 +94,12 @@ list_t *add_symbol(list_t *lst,char *text);
 list_t *add_char(list_t *lst,char *text);
 list_t *add_macro(list_t *lst,list_t *parm,list_t *body);
 list_t *add_list(list_t *parent,list_t *child);
+list_t *add_object(list_t *lst1, list_t *lst2);
 list_t *add(list_t *lst1,int index,list_t *lst2);
-list_t *list_clone(list_t *lst);
 int length_of_list(list_t *lst);
 list_t *reverse(list_t *lst);
 list_t *tail(list_t *lst);
 list_t *get_at(list_t *lst,int index);
+list_t *copy_list(list_t *lst) ;
 
 #endif
