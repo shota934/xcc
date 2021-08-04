@@ -148,6 +148,7 @@ static list_t *parser_parse_enum_element(parser_t *parser);
 static list_t *parser_parse_typedef_union_or_struct(parser_t *parser,list_t *lst,bool_t struct_type);
 static list_t *parser_parse_union_or_struct(parser_t *parser);
 static list_t *parser_parse_def_struct(parser_t *parser);
+static list_t *parser_parse_mems(parser_t *parser,list_t *type_lst);
 static list_t *parser_parse_members(parser_t *parser);
 static list_t *parser_parse_member(parser_t *parser);
 static list_t *parser_parse_funcargs(parser_t *parser,int cnt);
@@ -195,6 +196,7 @@ static list_t *parser_parse_unary_expr(parser_t *parser);
 static list_t *parser_parse_pointer(parser_t *parser);
 static list_t *parser_parse_type_qualifier_list(parser_t *parser);
 
+static list_t *parser_parse_dcls(parser_t *parser,list_t *type_lst);
 static list_t *parser_parse_dcl(parser_t *parser);
 
 static list_t *parser_parse_dirdcl(parser_t *parser);
@@ -482,7 +484,10 @@ static list_t *parser_parse_member(parser_t *parser){
   new_lst = parser_parse_func(parser,type_lst,new_lst,quali_type_lst);
 
   t = lexer_get_token(PARSER_GET_LEX(parser));
-  if(!IS_SEMI_COLON(t)){
+  if(IS_COMMA(t)){
+	new_lst = add_list(make_null(),new_lst);
+	new_lst = concat(new_lst,parser_parse_mems(parser,type_lst));
+  } else if(!IS_SEMI_COLON(t)){
 	printf("------------------------------\n");
 	printf("type_lst\n");
 	dump_ast(type_lst);
@@ -492,9 +497,35 @@ static list_t *parser_parse_member(parser_t *parser){
 	printf("------------------------------\n");
     error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n",";",TOKEN_GET_STR(t));
 	exit(1);
+  } else {
+	new_lst = add_list(make_null(),new_lst);
   }
-  
-  return add_list(make_null(),new_lst);
+
+  return new_lst;
+}
+
+static list_t *parser_parse_mems(parser_t *parser,list_t *type_lst){
+
+  list_t *new_lst;
+  token_t *t;
+
+#ifdef __DEBUG__
+  printf("parser_parse_mems\n");
+#endif
+
+  new_lst = parser_parse_dcl(parser);
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  new_lst = concat(new_lst,copy_list(type_lst));
+  new_lst = add_list(make_null(),new_lst);
+  if(IS_COMMA(t)){
+	new_lst = concat(new_lst,parser_parse_dcls(parser,type_lst));
+  } else if(IS_SEMI_COLON(t)){
+	return new_lst;
+  } else {
+	exit(1);
+  }
+
+  return new_lst;
 }
 
 static list_t *parser_parse_storage_class_dcl(parser_t *parser){
@@ -669,8 +700,9 @@ static list_t *parser_parse_dclation(parser_t *parser){
       new_lst = add_list(make_null(),new_lst);
     }
   } else if(IS_COMMA(t)){
-	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"undefined to parse the token '%s' ",TOKEN_GET_STR(t));
-	exit(1);
+	new_lst = make_keyword(new_lst,DECL_VAR);
+	PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),new_lst)));
+	new_lst = concat(add_list(make_null(),new_lst),parser_parse_dcls(parser,type_lst));
   } else if(IS_LPAREN(t) || IS_RPAREN(t)){
 	lexer_put_token(PARSER_GET_LEX(parser),t);
   } else {
@@ -1874,6 +1906,32 @@ static list_t *parser_parse_pointer(parser_t *parser){
 	}
   }
   lexer_put_token(PARSER_GET_LEX(parser),t);
+
+  return new_lst;
+}
+
+static list_t *parser_parse_dcls(parser_t *parser,list_t *type_lst){
+
+  list_t *new_lst;
+  token_t *t;
+
+#ifdef __DEBUG__
+  printf("parser_parse_dcls\n");
+#endif
+
+  new_lst = parser_parse_dcl(parser);
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  new_lst = concat(new_lst,copy_list(type_lst));
+  new_lst = make_keyword(new_lst,DECL_VAR);
+  PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),new_lst)));
+  new_lst = add_list(make_null(),new_lst);
+  if(IS_COMMA(t)){
+	new_lst = concat(new_lst,parser_parse_dcls(parser,type_lst));
+  } else if(IS_SEMI_COLON(t)){
+	return new_lst;
+  } else {
+	exit(1);
+  }
 
   return new_lst;
 }

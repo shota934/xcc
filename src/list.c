@@ -285,3 +285,56 @@ list_t *get_at(list_t *lst,int index){
 
   return p;
 }
+
+list_t *copy_list(list_t *lst) {
+
+  list_t *tmp;
+  list_t *obj;
+  list_t *copy_list;
+
+#ifdef __DEBUG__
+  printf("copy_list\n");
+#endif
+
+  tmp = make_null();
+  copy_list = make_null();
+  obj = lst;
+  while (!IS_NULL_LIST(obj)) {
+    tmp = add_object(tmp, obj);
+    copy_list = concat(copy_list, tmp);
+    obj = cdr(obj);
+    tmp = make_null();
+  }
+
+  return copy_list;
+}
+
+list_t *add_object(list_t *lst1, list_t *lst2) {
+
+  list_t *lst;
+
+#ifdef __DEBUG__
+  printf("add_object\n");
+#endif
+
+  switch (LIST_GET_TYPE(lst2)) {
+  case INTEGER:
+	lst = add_number(lst1, *(integer_t *)car(lst2));
+	break;
+  case SYMBOL:
+	lst = add_symbol(lst1, (string_t)car(lst2));
+	break;
+  case STRING:
+	lst = add_symbol(lst1, (string_t)car(lst2));
+	break;
+  case LIST:
+	lst = add_list(lst1, car(lst2));
+	break;
+  default:
+	exit(1);
+	break;
+  }
+  
+  return lst;   
+}
+
