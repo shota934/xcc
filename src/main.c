@@ -41,6 +41,8 @@ static void compile(opt_info_t *optinfo,string_t name){
   source_info_t *srcinfo;
   sema_t *sema;
   string_t outfile;
+  pid_t pid;
+  string_t output_name;
 
 #ifdef __DEBUG__
   printf("compile\n");
@@ -95,7 +97,7 @@ static void compile(opt_info_t *optinfo,string_t name){
 
   cgen(ast,file,DEFAULT_OUTPUT_FILE,SEMA_GET_SET(sema));
 
-  pid_t pid = fork();
+  pid = fork();
   outfile = make_outputfile(DEFAULT_OUTPUT_FILE,OBJ_FILE_EXTENSION);
   if (pid < 0){
 	perror("fork");
