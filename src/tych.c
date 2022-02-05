@@ -290,7 +290,7 @@ static type_t check_op_dot(env_t *env,list_t *lst){
 #ifdef __DEBUG__
   printf("check_op_dot\n");
 #endif
-  sym = lookup_obj(env,car(lst));
+  sym = lookup_obj(env,car(car(lst)));
   if(!sym){
 	exit(1);
   }
@@ -321,7 +321,7 @@ static type_t check_op_ref(env_t *env,list_t *lst){
   printf("check_op_ref\n");
 #endif
 
-  sym = lookup_obj(env,car(lst));
+  sym = lookup_obj(env,car(car(lst)));
   if(!sym){
 	exit(1);
   }

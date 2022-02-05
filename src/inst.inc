@@ -89,3 +89,4 @@
 
 #define ASM             "asm"
 #define BLOCK           "block"
+#define BUILTIN_FUNC "builtin-func"

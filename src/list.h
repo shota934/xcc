@@ -76,7 +76,7 @@ struct list_t {
 #define IS_SYMBOL(l) (l->type == SYMBOL)
 #define IS_INTEGER(l) (l->type == INTEGER)
 #define IS_DECIMAL(l) (l->type == DECIMAL)
-#define IS_OBJECT(l)  (l->type = OBJECT)
+#define IS_OBJECT(l)  (l->type == OBJECT)
 
 #define CDR(l) l->next
 #define CAR(l) car(l)

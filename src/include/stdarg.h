@@ -19,5 +19,9 @@ typedef __va_elem va_list[1];
 
 typedef va_list __gnuc_va_list;
 
+#define va_start(ap,a)  __builtin_va_start(ap)
+#define va_arg(ap,type) __builtin_va_arg(ap,ty)
+#define va_end(ap)      __builtin_va_end(ap)
+
 #endif
 

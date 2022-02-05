@@ -37,6 +37,8 @@ struct gen_info_t {
   type_t assign_type;
   int int_regs;
   int float_regs;
+  int num_of_gp;
+  int num_of_fp;
 };
 
 gen_info_t *create_gen_info();

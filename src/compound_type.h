@@ -10,11 +10,11 @@
 #include "obj.h"
 #include "map.h"
 
-#define COMPOUND_TYPE_SET_TYPE(c,t)     c->type = t;
+#define COMPOUND_TYPE_SET_TYPE(c,t)     c->type = t
 #define COMPOUND_TYPE_SET_SIZE(c,s)     c->size = s
 #define COMPOUND_TYPE_SET_ENV(c,e)      c->env = e
 
-#define COMPOUND_TYPE_GET_TYPE(c,t)     c->type;
+#define COMPOUND_TYPE_GET_TYPE(c)       c->type
 #define COMPOUND_TYPE_GET_SIZE(c)       c->size
 #define COMPOUND_TYPE_GET_ENV(c)        c->env
 #define COMPOUND_TYPE_GET_MEMBERS(c)        c->members

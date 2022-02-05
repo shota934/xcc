@@ -13,8 +13,10 @@
 #include "dump.h"
 #include "symbol.h"
 #include "env.h"
+#include "compound_type.h"
 
 static bool_t is_func_qualifier(list_t *lst);
+static type_t conv_compound_type(symbol_t *sym);
 
 int hash(char *name){
 
@@ -436,6 +438,10 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 	  return TYPE_STRUCT;
 	} else if(STRCMP(name,STRUCT)){
 	  return TYPE_STRUCT;
+	} else if(STRCMP(name,UNION_ALLOC)){
+	  return TYPE_UNION;
+	} else if(STRCMP(name,UNION)){
+	  return TYPE_UNION;
 	} else if(STRCMP(name,ARRAY)){
 	  if(IS_NULL_LIST(lst)){
 		return TYPE_ARRAY;
@@ -448,25 +454,43 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 		exit(1);
 	  }
 
-	  switch(SYMBOL_GET_SYM_TYPE(sym)){
-	  case TYPE_ENUM:
-		return SYMBOL_GET_SYM_TYPE(sym);
-		break;
-	  case TYPE_TYPE:
-		return conv_type(env,SYMBOL_GET_TYPE_LST(sym),lst);
-		break;
-	  default:
-		printf("name : %s\n",name);
-		printf("TYPE : %d\n",SYMBOL_GET_SYM_TYPE(sym));
-		exit(1);
-		break;
+	  if(sym->obj.type == TYPE_COMPOUND){
+		return conv_compound_type(sym);
+	  } else {
+		switch(SYMBOL_GET_SYM_TYPE(sym)){
+		case TYPE_ENUM:
+		  return SYMBOL_GET_SYM_TYPE(sym);
+		  break;
+		case TYPE_TYPE:
+		  return conv_type(env,SYMBOL_GET_TYPE_LST(sym),lst);
+		  break;
+		default:
+		  printf("name : %s\n",name);
+		  printf("TYPE : %d\n",SYMBOL_GET_SYM_TYPE(sym));
+		  exit(1);
+		  break;
+		}
 	  }
+	  printf("name : %s\n",name);
+	  exit(1);
 	}
-	printf("name : %s\n",name);
-	exit(1);
   }
 }
 
+type_t conv_compound_type(symbol_t *sym){
+
+  compound_def_t *com;
+
+  com = (compound_def_t *)sym;
+  switch(COMPOUND_TYPE_GET_TYPE(com)){
+  case STRUCT_COMPOUND_TYPE:
+	return TYPE_STRUCT;
+	break;
+  case UNION_COMPOUND_TYPE:
+	return TYPE_UNION;
+	break;
+  }
+}
 
 int calc_array_size(list_t *lst){
 

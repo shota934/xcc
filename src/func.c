@@ -10,6 +10,7 @@ func_t *create_func(list_t *args,list_t *ret_type,scope_t scope){
   func->obj.type = TYPE_FUNCTION;
   func->obj.scope = scope;
   func->args = args;
+  func->has_var_args = FALSE;
   func->ret_type = ret_type;
   func->len = length_of_list(args);
 
