@@ -25,6 +25,8 @@
 #define FILE_OPEN_MODE "rb"
 #define FILE_WRITE_MODE "w"
 #define OUTPUT_FILE_EXTENSION "s"
+#define OBJ_FILE_EXTENSION    "o"
+#define ASSEMBLER "as"
 #define INIT_VALUE     0x00
 #define NULL_LEN       0x01
 #define TABLE_SIZE 256

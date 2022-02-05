@@ -1317,6 +1317,7 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,list_t *lst,symbol_t
   string_t name;
   int size;
   int offset;
+  type_t type;
 
 #ifdef __DEBUG__
   printf("gen_complex_symbol\n");
@@ -1324,19 +1325,27 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,list_t *lst,symbol_t
 
   val = make_null();
   if(!IS_SYMBOL(lst)){
-	val = gen_symbol_var(gi,env,sym,lst);
+	return gen_symbol_var(gi,env,sym,lst);
   } else {
 	name = car(lst);
 	if(STRCMP(ARRAY,name)){
 	  val = gen_array(gi,env,lst,sym,FALSE,make_null());
+	  type = conv_type(env,tail(SYMBOL_GET_TYPE_LST(sym)),lst);
+	  if((type == TYPE_STRUCT)
+		 || (type == TYPE_UNION)){
+		val = add_number(val,type);
+		val = cons(val,sym);
+	  }
 	} else if(STRCMP(ADDRESS,name)){
 	  offset = SYMBOL_GET_OFFSET(sym);
 	  val = add_number(val,offset);
 	  val = add_symbol(val,ADDRESS);
+	  return val;
 	} else if(STRCMP(POINTER,name)){
 	  EMIT(gi,"movq %d(#rbp),#rcx",SYMBOL_GET_OFFSET(sym));
 	  val = add_symbol(val,POINTER);
 	  val = concat(val,gen_symbol_ptr(gi,env,sym,cdr(lst)));
+	  return val;
 	} else {
 	  type_lst = SYMBOL_GET_TYPE_LST(sym);
 	  size = SYMBOL_GET_SIZE(sym);
@@ -1345,6 +1354,7 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,list_t *lst,symbol_t
 	  val = add_number(val,offset);
 	  val = add_number(val,size);
 	  val = add_list(make_null(),val);
+	  return val;
 	}
   }
 
@@ -2542,6 +2552,8 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 
   symbol_t *sym;
   list_t *val;
+  list_t *type_lst;
+  type_t type;
   string_t name;
 
 #ifdef __DEBUG__

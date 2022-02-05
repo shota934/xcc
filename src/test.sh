@@ -4,7 +4,7 @@ try(){
     input="$2"
     testcase="$3"
     ./xcc "$input"
-    gcc -o tmp tmp.s
+    gcc -o tmp tmp.o
     ./tmp
     actual="$?"
 
@@ -91,5 +91,7 @@ try 6   test/test_pass_strval.c      "Passed test_pass_strval."
 try 0   test/test_init_struct1.c     "Passed test_init_struct1."
 try 0   test/test_init_struct2.c     "Passed test_init_struct2."
 try 0   test/test_arr_str.c          "Passed test_arr_str."
+try 0   test/test_double_array_struct.c "Passed test_double_array_struct."
+try 0   test/test_struct_array2.c       "Passed test_struct_array2.c"
 
 echo "Passed all Test cases."

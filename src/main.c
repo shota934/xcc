@@ -1,10 +1,10 @@
 // 
 //
 //  Copyright 2019 Shota Hisai. Released under the MIT license.
-//
-//
+////
 #include <stdio.h>
-#include "unistd.h"
+#include <unistd.h>
+#include <sys/wait.h>
 #include "parser.h"
 #include "list.h"
 #include "dump.h"
@@ -40,6 +40,7 @@ static void compile(opt_info_t *optinfo,string_t name){
   compile_info_t *com;
   source_info_t *srcinfo;
   sema_t *sema;
+  string_t outfile;
 
 #ifdef __DEBUG__
   printf("compile\n");
@@ -93,6 +94,23 @@ static void compile(opt_info_t *optinfo,string_t name){
 
 
   cgen(ast,file,DEFAULT_OUTPUT_FILE,SEMA_GET_SET(sema));
+
+  pid_t pid = fork();
+  outfile = make_outputfile(DEFAULT_OUTPUT_FILE,OBJ_FILE_EXTENSION);
+  if (pid < 0){
+	perror("fork");
+  }
+
+  if(pid == 0){
+	execlp(ASSEMBLER, ASSEMBLER, "-o", outfile, "-c", DEFAULT_OUTPUT_FILE, (string_t)NULL);
+	perror("execlp failed");
+  }
+
+  int status;
+  waitpid(pid, &status, 0);
+  if(status < 0){
+	printf("as error");
+  }
   
   return;
 }
