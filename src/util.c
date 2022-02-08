@@ -517,3 +517,21 @@ int calc_array_size(list_t *lst){
 
   return size;
 }
+
+bool_t is_integertype(list_t *lst){
+
+  list_t *l;
+  string_t name;
+  l = tail(lst);
+  name = car(l);
+  
+  if(STRCMP(name,INT)
+	 || (STRCMP(name,SHORT))
+	 || (STRCMP(name,LONG))
+	 || (STRCMP(name,CHAR))){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+

@@ -296,6 +296,8 @@ static void restore_registers(gen_info_t *gi);
 static list_t *gen_builtin_func(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_builtin_va_start(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_builtin_va_arg(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_builtin_va_arg_gp(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_builtin_va_arg_fp(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_builtin_va_end(gen_info_t *gi);
 
 gen_info_t *create_gen_info(){
@@ -5268,13 +5270,29 @@ static list_t *gen_builtin_va_start(gen_info_t *gi,env_t *env,list_t *lst){
 static list_t *gen_builtin_va_arg(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
+#ifdef __DEBUG__
+  printf("gen_builtin_va_arg\n");
+#endif
+
+  if(is_integertype(car(cdr(lst)))){
+	val = gen_builtin_va_arg_gp(gi,env,lst);
+  } else {
+	val = gen_builtin_va_arg_fp(gi,env,lst);
+  }
+
+  return val;
+}
+
+static list_t *gen_builtin_va_arg_gp(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
   string_t stack;
   string_t fetch;
   int offset;
   int base;
 
 #ifdef __DEBUG__
-  printf("gen_builtin_va_arg\n");
+  printf("gen_builtin_va_arg_gp\n");
 #endif
 
   val = gen_body(gi,env,car(lst));
@@ -5305,6 +5323,19 @@ static list_t *gen_builtin_va_arg(gen_info_t *gi,env_t *env,list_t *lst){
 
   val = add_number(make_null(),TYPE_INT);
   val = add_number(val,sizeof(int));
+
+  return val;
+}
+
+static list_t*gen_builtin_va_arg_fp(gen_info_t *gi,env_t *env,list_t *lst){
+
+  list_t *val;
+
+#ifdef __DEBUG__
+  printf("gen_builtin_va_arg_fp\n");
+#endif
+
+  val = make_null();
 
   return val;
 }
