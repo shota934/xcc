@@ -52,7 +52,7 @@ void error_no_info(string_t msg,...){
   va_list args;
 
 #ifdef __DEBUG__
-  printf("error_no_lineno\n");
+  printf("error_no_info\n");
 #endif
 
   va_start(args,msg);

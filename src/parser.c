@@ -1317,6 +1317,8 @@ static list_t *parser_parse_factor(parser_t *parser){
 	if(IS_NOT_NULL_LIST(cdr(new_lst))){
 	  new_lst = add_list(make_null(),new_lst);
 	}
+  } else if(IS_TYPE(t)){
+	new_lst = make_symbol(new_lst,t);
   } else if(IS_LPAREN(t)){
     new_lst = parser_baracket_expr(parser);
   } else if(IS_ASTERISK(t)){
@@ -2106,7 +2108,9 @@ static bool_t is_buildin_func(list_t *lst){
   printf("is_buildin_func\n");
 #endif
 
-  if(STRCMP(BUILT_IN_VA_START,car(lst))){
+  if(STRCMP(BUILT_IN_VA_START,car(lst))
+	 || STRCMP(BUILT_IN_VA_ARG,car(lst))
+	 || STRCMP(BUILT_IN_VA_END,car(lst))){
 	return TRUE;
   }
 

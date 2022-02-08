@@ -262,7 +262,7 @@ static bool_t is_unary(list_t *lst);
 static func_t *make_func(list_t *lst,scope_t scope);
 static list_t *gen_typedef(gen_info_t *gi,env_t *env,list_t *lst);
 static integer_t get_offset(list_t *lst);
-static char* make_label(gen_info_t *gi);
+static string_t make_label(gen_info_t *gi);
 static int get_size_of_array(gen_info_t *gi,list_t *lst,env_t *env);
 
 static int calc(gen_info_t *gi,list_t *lst,env_t *env);
@@ -295,7 +295,7 @@ static void restore_registers(gen_info_t *gi);
  */
 static list_t *gen_builtin_func(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_builtin_va_start(gen_info_t *gi,env_t *env,list_t *lst);
-static list_t *gen_builtin_va_arg(gen_info_t *gi);
+static list_t *gen_builtin_va_arg(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_builtin_va_end(gen_info_t *gi);
 
 gen_info_t *create_gen_info(){
@@ -2551,7 +2551,6 @@ static list_t *categorize_type(env_t *env,list_t *lst){
 static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 
   symbol_t *sym;
-  list_t *val;
   list_t *type_lst;
   type_t type;
   string_t name;
@@ -2566,9 +2565,7 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,list_t *lst){
 	return make_null();
   }
 
-  val = gen_complex_symbol(gi,env,cdr(lst),sym);
-
-  return val;
+  return gen_complex_symbol(gi,env,cdr(lst),sym);
 }
 
 static list_t *gen_load(gen_info_t *gi,env_t *env,list_t *lst){
@@ -2610,9 +2607,6 @@ static list_t *gen_load(gen_info_t *gi,env_t *env,list_t *lst){
 static list_t *gen_local_load(gen_info_t *gi,env_t *env,list_t *lst,symbol_t *sym){
 
   list_t *val;
-  string_t inst;
-  string_t reg;
-  int offset;
 
 #ifdef __DEBUG__
   printf("gen_local_load\n");
@@ -2656,8 +2650,6 @@ static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg){
 	reg = select_reg(size);
 	if(inst && reg){
 	  EMIT(gi,"%s (#rcx),#%s",inst,reg);
-	} else {
-	  printf("Can not select the instruction and the register for the array object.\n");
 	}
 	val = lst;
   } else if(is_pointer(lst)){
@@ -5197,35 +5189,25 @@ static void save_registers(gen_info_t *gi){
 #endif
   gen_info_add_stack_pos(gi,SAVE_REGISTER_SIZE);
   // Integer Registers
-  EMIT(gi,"movq #rdi, $0(#rsp)");
-  EMIT(gi,"movq #rsi, $8(#rsp)");
-  EMIT(gi,"movq #rdx, $16(#rsp)");
-  EMIT(gi,"movq #rcx, $24(#rsp)");
-  EMIT(gi,"movq #r8 , $32(#rsp)");
-  EMIT(gi,"movq #r9 , $40(#rsp)");
+  EMIT(gi,"movq #rdi, 0(#rsp)");
+  EMIT(gi,"movq #rsi, 8(#rsp)");
+  EMIT(gi,"movq #rdx, 16(#rsp)");
+  EMIT(gi,"movq #rcx, 24(#rsp)");
+  EMIT(gi,"movq #r8 , 32(#rsp)");
+  EMIT(gi,"movq #r9 , 40(#rsp)");
 
   // XMM Registers
-  EMIT(gi,"movaps xmm0, $48(#rsp)");
-  EMIT(gi,"movaps xmm1, $64(#rsp)");
-  EMIT(gi,"movaps xmm2, $80(#rsp)");
-  EMIT(gi,"movaps xmm3, $96(#rsp)");
-  EMIT(gi,"movaps xmm4, $112(#rsp)");
-  EMIT(gi,"movaps xmm5, $128(#rsp)");
-  EMIT(gi,"movaps xmm6, $144(#rsp)");
-  EMIT(gi,"movaps xmm7, $160(#rsp)");
+  EMIT(gi,"movaps #xmm0, 48(#rsp)");
+  EMIT(gi,"movaps #xmm1, 64(#rsp)");
+  EMIT(gi,"movaps #xmm2, 80(#rsp)");
+  EMIT(gi,"movaps #xmm3, 96(#rsp)");
+  EMIT(gi,"movaps #xmm4, 112(#rsp)");
+  EMIT(gi,"movaps #xmm5, 128(#rsp)");
+  EMIT(gi,"movaps #xmm6, 144(#rsp)");
+  EMIT(gi,"movaps #xmm7, 160(#rsp)");
 
   return;
 }
-
-static void restore_registers(gen_info_t *gi){
-
-#ifdef __DEBUG__
-  printf("restore_registers\n");
-#endif
-
-  return;
-}
-
 
 /*
  * builtin functions
@@ -5242,12 +5224,13 @@ static list_t *gen_builtin_func(gen_info_t *gi,env_t *env,list_t *lst){
   if(STRCMP(name,BUILT_IN_VA_START)){
 	val = gen_builtin_va_start(gi,env,car(cdr(lst)));
   } else if(STRCMP(name,BUILT_IN_VA_ARG)){
-	val = gen_builtin_va_arg(gi);
+	val = gen_builtin_va_arg(gi,env,car(cdr(lst)));
   } else if(STRCMP(name,BUILT_IN_VA_END)){
 	val = gen_builtin_va_end(gi);
-	  } else {
+  } else {
+	val = make_null();
+	error_no_info("Unknown builtin-function [%s].",name);
   }
-  val = make_null();
 
   return val;
 }
@@ -5258,66 +5241,81 @@ static list_t *gen_builtin_va_start(gen_info_t *gi,env_t *env,list_t *lst){
   list_t *arg;
   int offset;
   int base;
+
 #ifdef __DEBUG__
   printf("gen_builtin_va_start\n");
 #endif
 
-  val = make_null();
-
-  printf("gen_builtin_va_start start\n");
-  dump_ast(car(lst));
-  //
-  //
   val = gen_body(gi,env,car(lst));
-  printf("====================================\n");
-  dump_ast(val);
-  printf("====================================\n");
   base = *(int *)car(cdr(cdr(val)));
-  printf("base : [%d]\n",base);
 
-  offset = base + 8;
-  printf("offset : [%d]\n",offset);
-  //
-  //
-  //
-  EMIT(gi,"// --------------------------------");
-  EMIT(gi,"leaq %d(#rsp), #rax",48);
-  EMIT(gi,"movq #rax, $%d(#rbp)",offset);
-  //
-  //
-  //
+  EMIT(gi,"movl $%d, %d(#rbp)",8,base);
+
+  offset = base + 4;
+  EMIT(gi,"movl $%d, %d(#rbp)",48,offset);
+
+  offset += 4;
+  EMIT(gi,"leaq %d(#rsp), #rax",176);
+  EMIT(gi,"movq #rax, %d(#rbp)",offset);
+
   offset += 8;
-  printf("offset : [%d]\n",offset);
   EMIT(gi,"leaq %d(#rsp), #rax",0);
-  EMIT(gi,"movq #rax, $%d(#rbp)",offset);
-
-  EMIT(gi,"// --------------------------------");
-
-  printf("gen_builtin_va_start end\n");
+  EMIT(gi,"movq #rax, %d(#rbp)",offset);
 
   return val;
 }
 
-static list_t *gen_builtin_va_arg(gen_info_t *gi){
+static list_t *gen_builtin_va_arg(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
+  string_t stack;
+  string_t fetch;
+  int offset;
+  int base;
+
 #ifdef __DEBUG__
   printf("gen_builtin_va_arg\n");
 #endif
 
-  val = make_null();
+  val = gen_body(gi,env,car(lst));
+  base = *(int *)car(cdr(cdr(val)));
+
+  stack = make_label(gi);
+  fetch = make_label(gi);
+
+  EMIT(gi,"movl %d(#rbp),#eax",base);
+  EMIT(gi,"cmpl $%d, #eax",48);
+  EMIT(gi,"jae %s",stack);
+  EMIT(gi,"leal %d(#rax),#edx",8);
+
+  offset = base + 16;
+  EMIT(gi,"addq %d(#rbp),#rax",offset);
+  EMIT(gi,"movl #edx,%d(#rbp)",base);
+  gen_jmp(gi,fetch);
+
+  gen_label(gi,stack);
+
+  // label stack
+  EMIT(gi,"movq %d(#rbp), #rax",base + 8);
+  EMIT(gi,"leaq %d(#rax), #rdx",8);
+  EMIT(gi,"movq #rdx,%d(#rbp)",base + 8);
+
+  gen_label(gi,fetch);
+  EMIT(gi,"movl (#rax),#eax");
+
+  val = add_number(make_null(),TYPE_INT);
+  val = add_number(val,sizeof(int));
 
   return val;
 }
 
 static list_t *gen_builtin_va_end(gen_info_t *gi){
 
-  list_t *val;
 #ifdef __DEBUG__
   printf("gen_builtin_va_end\n");
 #endif
 
-  val = make_null();
+  gen_info_add_stack_pos(gi,-SAVE_REGISTER_SIZE);
 
-  return val;
+  return make_null();
 }
