@@ -11,7 +11,6 @@
 
 #define FUNC "FUNC"
 
-static list_t *get_ret_type(list_t *lst);
 symbol_t *create_symbol(list_t *lst){
 
   symbol_t *sym;
@@ -27,7 +26,7 @@ symbol_t *create_symbol(list_t *lst){
   return sym;
 }
 
-static list_t *get_ret_type(list_t *lst){
+list_t *get_ret_type(list_t *lst){
 
   list_t *p;
   string_t name;

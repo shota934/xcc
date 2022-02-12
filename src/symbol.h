@@ -38,6 +38,6 @@ struct symbol_t {
 };
 
 symbol_t *create_symbol(list_t *lst);
-static list_t *get_ret_type(list_t *lst);
+list_t *get_ret_type(list_t *lst);
 
 #endif

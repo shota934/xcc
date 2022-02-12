@@ -522,9 +522,17 @@ bool_t is_integertype(list_t *lst){
 
   list_t *l;
   string_t name;
+
+#ifdef __DEBUG__
+  printf("is_integertype\n");
+#endif
+  name = car(lst);
+  if(STRCMP(name,POINTER)){
+	return TRUE;
+  }
+
   l = tail(lst);
   name = car(l);
-  
   if(STRCMP(name,INT)
 	 || (STRCMP(name,SHORT))
 	 || (STRCMP(name,LONG))

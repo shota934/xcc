@@ -4,6 +4,7 @@
 #include "obj.h"
 #include "list.h"
 
+#define FUNC_GET_TYPE(f)     f->obj.type
 #define FUNC_GET_RET_TYPE(f) f->ret_type
 #define FUNC_IS_HAVING_VAR_ARG(f) f->has_var_args
 

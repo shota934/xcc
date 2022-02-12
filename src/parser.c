@@ -490,13 +490,6 @@ static list_t *parser_parse_member(parser_t *parser){
 	new_lst = add_list(make_null(),new_lst);
 	new_lst = concat(new_lst,parser_parse_mems(parser,type_lst));
   } else if(!IS_SEMI_COLON(t)){
-	printf("------------------------------\n");
-	printf("type_lst\n");
-	dump_ast(type_lst);
-	printf("------------------------------\n");
-	printf("new_lst\n");
-	dump_ast(new_lst);
-	printf("------------------------------\n");
     error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n",";",TOKEN_GET_STR(t));
 	exit(1);
   } else {
@@ -1317,8 +1310,6 @@ static list_t *parser_parse_factor(parser_t *parser){
 	if(IS_NOT_NULL_LIST(cdr(new_lst))){
 	  new_lst = add_list(make_null(),new_lst);
 	}
-  } else if(IS_TYPE(t)){
-	new_lst = make_symbol(new_lst,t);
   } else if(IS_LPAREN(t)){
     new_lst = parser_baracket_expr(parser);
   } else if(IS_ASTERISK(t)){
@@ -1361,7 +1352,11 @@ static list_t *parser_parse_factor(parser_t *parser){
     }
     new_lst = add_list(make_null(),new_lst);
   } else {
-    lexer_put_token(PARSER_GET_LEX(parser),t);
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+	new_lst = parser_parse_dclation(parser);
+	if(IS_NOT_NULL_LIST(new_lst)){
+	  new_lst = add_list(make_null(),new_lst);
+	}
   }
 
   return new_lst;
@@ -1721,11 +1716,13 @@ static list_t *parser_parse_sub(parser_t *parser,list_t *lst){
 	new_lst = parser_parse_sub(parser,concat(lst,new_lst));
   } else if(IS_LPAREN(t)){
 	if(is_buildin_func(lst) && !set_find_obj(PARSER_GET_SET(parser),car(lst))){
-	  new_lst = concat(lst,concat(new_lst,parser_parse_func_call(parser)));
+	  sub_lst = add_list(make_null(),lst);
+	  new_lst = concat(sub_lst,concat(new_lst,parser_parse_func_call(parser)));
 	  new_lst = add_list(make_null(),make_keyword(new_lst,BUILTIN_FUNC));
 	  new_lst = parser_parse_sub(parser,new_lst);
 	} else {
-	  new_lst = concat(lst,concat(new_lst,parser_parse_func_call(parser)));
+	  sub_lst = add_list(make_null(),lst);
+	  new_lst = concat(sub_lst,concat(new_lst,parser_parse_func_call(parser)));
 	  new_lst = add_list(make_null(),make_keyword(new_lst,FUNC_CALL));
 	  new_lst = parser_parse_sub(parser,new_lst);
 	}

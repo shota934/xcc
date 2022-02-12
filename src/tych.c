@@ -46,7 +46,7 @@ static type_t check_op_type_list(env_t *env,list_t *lst){
   type_t val;
   list_type_t type;
 #ifdef __DEBUG__
-  printf("check_op_type\n");
+  printf("check_op_type_list\n");
 #endif
 
   type = LIST_GET_TYPE(lst);
@@ -265,19 +265,28 @@ static type_t check_op_func(env_t *env,list_t *lst){
 
   func_t *func;
   string_t name;
+  symbol_t *sym;
 
 #ifdef __DEBUG__
   printf("check_op_func\n");
 #endif
 
-  name = car(lst);
+  name = car(car(lst));
   func = lookup_obj(env,name);
   if(!func){
 	exit(1);
   }
 
-  DUMP_AST(FUNC_GET_RET_TYPE(func));
-  return analyze_type(env,FUNC_GET_RET_TYPE(func),make_null());
+  switch (FUNC_GET_TYPE(func)){
+  case TYPE_SYMBOL:
+	sym = (symbol_t *)func;
+	return analyze_type(env,get_ret_type(SYMBOL_GET_TYPE_LST(sym)),make_null());
+  case TYPE_FUNCTION:
+	DUMP_AST(FUNC_GET_RET_TYPE(func));
+	return analyze_type(env,FUNC_GET_RET_TYPE(func),make_null());
+  default:
+	break;
+  }
 }
 
 static type_t check_op_dot(env_t *env,list_t *lst){
@@ -343,13 +352,11 @@ static type_t check_op_ref(env_t *env,list_t *lst){
 
 static type_t check_op_array(env_t *env,list_t *lst){
 
-  type_t type;
 #ifdef __DEBUG__
   printf("check_op_array\n");
 #endif
 
-  exit(1);
-  return type;
+  return TYPE_ARRAY;
 }
 
 static type_t check_op_cmp(env_t *env,list_t *lst){

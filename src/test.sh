@@ -93,5 +93,7 @@ try 0   test/test_arr_str.c          "Passed test arr str."
 try 0   test/test_double_array_struct.c "Passed test double array struct."
 try 0   test/test_struct_array2.c       "Passed test structarray2."
 try 0   test/test_variable_argment.c    "Passed test variable argment for only integer number."
+try 0   test/test_list_of_function_pointer.c "Passed test list of function pointer."
+try 0   test/test_variable_argment_pointer_case.c  "Passed test variable argment for only pointer value."
 
 echo "Passed all Test cases."

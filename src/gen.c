@@ -72,6 +72,7 @@ char *FLOAT_REGS[] = {"xmm0","xmm1","xmm2","xmm3","xmm4","xmm5","xmm6","xmm7"};
 #define INFO_GET_MAP(gi)                 gi->map
 #define GET_LABEL(gi)   gi->label
 
+static bool_t is_arg(list_t *lst);
 static list_t *get_args(list_t *lst);
 static list_t *get_ret(list_t *lst);
 static list_t *get_body(list_t *lst);
@@ -132,8 +133,9 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,list_t *lst,symbol_t
 static list_t *gen_symbol_var(gen_info_t *gi,env_t *env,symbol_t *sym,list_t *lst);
 static list_t *gen_symbol_ptr(gen_info_t *gi,env_t *env,symbol_t *sym,list_t *lst);
 static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst);
-static list_t *gen_call_func(gen_info_t *gi,env_t *env,func_t *func,list_t *lst);
-static list_t *gen_call_func_ptr(gen_info_t *gi,env_t *env,symbol_t *sym);
+static bool_t gen_call_func_obj(gen_info_t *gi,env_t *env,list_t *lst);
+static list_t *gen_call_func(gen_info_t *gi,env_t *env,func_t *func,string_t name);
+static list_t *gen_call_func_ptr(gen_info_t *gi,env_t *env,symbol_t *sym,list_t *lst);
 static int gen_call_args(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_call_rest_args(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_call_int_args(gen_info_t *gi,env_t *env,list_t *lst);
@@ -412,6 +414,15 @@ void delete_gen_info(gen_info_t *gi){
   fre(gi);
 
   return;
+}
+
+static bool_t is_arg(list_t *lst){
+
+  if(IS_LIST(lst)){
+	return TRUE;
+  }
+
+  return FALSE;
 }
 
 static list_t *get_args(list_t *lst){
@@ -728,7 +739,6 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,list_t *lst,env_t *penv){
   }
 
   if(FUNC_IS_HAVING_VAR_ARG(func)){
-	printf("Having a variable argments\n");
 	save_registers(gi);
   }
 
@@ -1436,10 +1446,11 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
   list_t *args;
+  list_t *cl;
   object_t *obj;
+  string_t name;
   int len_args;
   bool_t fop;
-  list_t *cl;
   int osa;
 
 #ifdef __DEBUG__
@@ -1448,7 +1459,6 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst){
 
   fop = FALSE;
   args = car(cdr(lst));
-
   cl = categorize(env,args);
 
   // Parameter Passing
@@ -1461,18 +1471,18 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst){
 	fop = TRUE;
   }
 
-  obj = lookup_obj(env,car(lst));
-
+  name = car(car(lst));
+  obj = lookup_obj(env,name);
   if(!obj){
 	warn(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),
 		 "implicit declaration of function '%s'",(string_t)car(lst));
-	return make_null();
+	return NULL;
   }
 
   if(is_func(obj)){
-	val = gen_call_func(gi,env,(func_t *)obj,lst);
+	val = gen_call_func(gi,env,(func_t *)obj,name);
   } else if(is_symbol(obj)){
-	val = gen_call_func_ptr(gi,env,(symbol_t *)obj);
+	val = gen_call_func_ptr(gi,env,(symbol_t *)obj,car(lst));
   }
 
   if(fop){
@@ -1482,7 +1492,8 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,list_t *lst){
   return val;
 }
 
-static list_t *gen_call_func(gen_info_t *gi,env_t *env,func_t *func,list_t *lst){
+
+static list_t *gen_call_func(gen_info_t *gi,env_t *env,func_t *func,string_t name){
 
   list_t *val;
   int size;
@@ -1494,9 +1505,9 @@ static list_t *gen_call_func(gen_info_t *gi,env_t *env,func_t *func,list_t *lst)
 
   val = make_null();
 #ifdef __LINUX__
-  EMIT(gi,"callq %s",car(lst));
+  EMIT(gi,"callq %s",name);
 #else
-  EMIT(gi,"callq _%s",car(lst));
+  EMIT(gi,"callq _%s",name);
 #endif
 
   size = select_size(gi,env,FUNC_GET_RET_TYPE(func),FALSE);
@@ -1518,7 +1529,7 @@ static list_t *gen_call_func(gen_info_t *gi,env_t *env,func_t *func,list_t *lst)
   return val;
 }
 
-static list_t *gen_call_func_ptr(gen_info_t *gi,env_t *env,symbol_t *sym){
+static list_t *gen_call_func_ptr(gen_info_t *gi,env_t *env,symbol_t *sym,list_t *lst){
 
   list_t *val;
   int size;
@@ -1528,7 +1539,8 @@ static list_t *gen_call_func_ptr(gen_info_t *gi,env_t *env,symbol_t *sym){
 #endif
 
 #ifdef __LINUX__
-  EMIT(gi,"movq %d(#rbp), #rax",SYMBOL_GET_OFFSET(sym));
+  gen_body(gi,env,lst);
+  //pop(gi,"rax");
   EMIT(gi,"call *#rax");
 #endif
 
@@ -5222,7 +5234,7 @@ static list_t *gen_builtin_func(gen_info_t *gi,env_t *env,list_t *lst){
   printf("gen_builtin_func\n");
 #endif
 
-  name = car(lst);
+  name = car(car(lst));
   if(STRCMP(name,BUILT_IN_VA_START)){
 	val = gen_builtin_va_start(gi,env,car(cdr(lst)));
   } else if(STRCMP(name,BUILT_IN_VA_ARG)){
@@ -5273,8 +5285,8 @@ static list_t *gen_builtin_va_arg(gen_info_t *gi,env_t *env,list_t *lst){
 #ifdef __DEBUG__
   printf("gen_builtin_va_arg\n");
 #endif
-
-  if(is_integertype(car(cdr(lst)))){
+  dump_ast(lst);
+  if(is_integertype(car(car(cdr(lst))))){
 	val = gen_builtin_va_arg_gp(gi,env,lst);
   } else {
 	val = gen_builtin_va_arg_fp(gi,env,lst);
@@ -5288,8 +5300,11 @@ static list_t *gen_builtin_va_arg_gp(gen_info_t *gi,env_t *env,list_t *lst){
   list_t *val;
   string_t stack;
   string_t fetch;
+  string_t reg;
+  string_t inst;
   int offset;
   int base;
+  int size;
 
 #ifdef __DEBUG__
   printf("gen_builtin_va_arg_gp\n");
@@ -5318,11 +5333,17 @@ static list_t *gen_builtin_va_arg_gp(gen_info_t *gi,env_t *env,list_t *lst){
   EMIT(gi,"leaq %d(#rax), #rdx",8);
   EMIT(gi,"movq #rdx,%d(#rbp)",base + 8);
 
+  // label fetch
   gen_label(gi,fetch);
-  EMIT(gi,"movl (#rax),#eax");
+  size = select_size(gi,env,car(car(cdr(lst))),FALSE);
+  inst = select_inst(size);
+  reg = select_reg(size);
+  EMIT(gi,"%s (#rax),#%s",inst,reg);
 
-  val = add_number(make_null(),TYPE_INT);
-  val = add_number(val,sizeof(int));
+  val = add_number(make_null(),conv_type(env,
+										 car(car(cdr(lst))),
+										 make_null()));
+  val = add_number(val,size);
 
   return val;
 }
