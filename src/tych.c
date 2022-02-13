@@ -304,7 +304,7 @@ static type_t check_op_dot(env_t *env,list_t *lst){
 	exit(1);
   }
 
-  com = lookup_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+  com = get_comp_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
   if(!com){
 	exit(1);
   }
@@ -335,7 +335,7 @@ static type_t check_op_ref(env_t *env,list_t *lst){
 	exit(1);
   }
 
-  com = lookup_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+  com = get_comp_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
   if(!com){
 	exit(1);
   }

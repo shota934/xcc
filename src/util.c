@@ -543,3 +543,25 @@ bool_t is_integertype(list_t *lst){
   return FALSE;
 }
 
+compound_def_t *get_comp_obj(env_t *env,string_t name){
+
+  object_t *obj;
+  symbol_t *sym;
+
+  obj = lookup_obj(env,name);
+  switch(OBJ_GET_TYPE(obj)){
+  case TYPE_SYMBOL:
+	sym = (symbol_t *)obj;
+	switch(SYMBOL_GET_SYM_TYPE(sym)){
+	case TYPE_TYPE:
+	  return get_comp_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+	  break;
+	}
+	break;
+  case TYPE_COMPOUND:
+	return (compound_def_t *)obj;
+	break;
+  }
+
+  exit(1);
+}
