@@ -15,6 +15,7 @@
 //----
 
 #define ARRAY         "[]"
+#define UNDEFINED_SIZE "undefined-size"
 #define INIT_LIST    "init-list"
 #define FUNC          "FUNC"
 #define FUNC_CALL     "func-call"
@@ -671,9 +672,9 @@ static list_t *parser_parse_dclation(parser_t *parser){
   } else if(IS_ASSIGN(t)){
 	list_t *lst = make_keyword(new_lst,DECL_VAR);
 	new_lst = add_list(make_null(),lst);
-	PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),lst)));
+	new_lst = concat(new_lst,parser_parse_initializer(parser));
+	PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),new_lst)));
     new_lst = make_symbol(new_lst,t);
-    new_lst = concat(new_lst,parser_parse_initializer(parser));
     new_lst = add_list(make_null(),new_lst);
     t = lexer_get_token(PARSER_GET_LEX(parser));    
     if(!IS_SEMI_COLON(t)){
@@ -691,12 +692,12 @@ static list_t *parser_parse_dclation(parser_t *parser){
 	  new_lst = add_list(make_null(),new_lst);
     } else if(!IS_LIST(new_lst)){
 	  new_lst = make_keyword(new_lst,DECL_VAR);
-	  PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),new_lst)));
+	  PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),add_list(make_null(),new_lst))));
       new_lst = add_list(make_null(),new_lst);
     }
   } else if(IS_COMMA(t)){
 	new_lst = make_keyword(new_lst,DECL_VAR);
-	PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),new_lst)));
+	PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),add_list(make_null(),new_lst))));
 	new_lst = concat(add_list(make_null(),new_lst),parser_parse_dcls(parser,type_lst));
   } else if(IS_LPAREN(t) || IS_RPAREN(t)){
 	lexer_put_token(PARSER_GET_LEX(parser),t);
@@ -1037,6 +1038,9 @@ static list_t *parser_parse_stmt(parser_t *parser){
 #endif
   
   new_lst = parser_parse_cexpr(parser);
+  if(IS_NULL_LIST(new_lst)){
+	new_lst = add_symbol(make_null(),UNDEFINED_SIZE);
+  }
   new_lst = add_list(make_null(),new_lst);
   t = lexer_get_token(PARSER_GET_LEX(parser));
   new_lst = make_keyword(new_lst,ARRAY);
@@ -1936,7 +1940,7 @@ static list_t *parser_parse_dcls(parser_t *parser,list_t *type_lst){
   t = lexer_get_token(PARSER_GET_LEX(parser));
   new_lst = concat(new_lst,copy_list(type_lst));
   new_lst = make_keyword(new_lst,DECL_VAR);
-  PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),new_lst)));
+  PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),add_list(make_null(),new_lst))));
   new_lst = add_list(make_null(),new_lst);
   if(IS_COMMA(t)){
 	new_lst = concat(new_lst,parser_parse_dcls(parser,type_lst));

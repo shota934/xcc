@@ -121,7 +121,7 @@ static void gen_local_vars(gen_info_t *gi,env_t *env,list_t *lst);
 static int gen_loacl_ints(gen_info_t *gi,env_t *env,list_t *lst);
 static int gen_loacl_int(gen_info_t *gi,env_t *env,list_t *lst);
 
-static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t scope);
+static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t scope,string_t name);
 static symbol_t *factory_member(gen_info_t *gi,env_t *env,list_t *lst,integer_t offset);
 
 static list_t *gen_symbol(gen_info_t *gi,env_t *env,list_t *lst);
@@ -1053,7 +1053,7 @@ static int gen_loacl_ints(gen_info_t *gi,env_t *env,list_t *lst){
   p = lst;
   localarea = 0;
   while(IS_NOT_NULL_LIST(p)){
-	size = gen_loacl_int(gi,env,cdr(cdr(car(p))));
+	size = gen_loacl_int(gi,env,car(p));
 	localarea += calc_mem_alignment(localarea,size);
 	localarea += size;
 	p = cdr(p);
@@ -1064,18 +1064,28 @@ static int gen_loacl_ints(gen_info_t *gi,env_t *env,list_t *lst){
 
 static int gen_loacl_int(gen_info_t *gi,env_t *env,list_t *lst){
 
+  string_t name;
   int size;
 
 #ifdef __DEBUG__
   printf("gen_loacl_int\n");
 #endif
 
-  return select_size(gi,env,lst,FALSE);
+  size = select_size(gi,env,cdr(cdr(car(lst))),FALSE);
+  if(size < 0){
+	size = -size * select_size(gi,env,car(cdr(lst)),FALSE);
+  }
+
+  name = car(cdr(car(lst)));
+  insert_obj(env,name,add_number(make_null(),size));
+
+  return size;
 }
 
-static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t scope){
+static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t scope,string_t name){
 
   symbol_t *sym;
+  list_t *l;
   int size;
   int offset;
   int alignment;
@@ -1085,7 +1095,15 @@ static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,list_t *lst,scope_t sc
 #endif
 
   sym = create_symbol(eval_type(gi,env,lst));
-  size = select_size(gi,env,lst,FALSE);
+  l = lookup_obj(env,name);
+  if(l){
+	size = *(integer_t*)car(l);
+  } else {
+	size = select_size(gi,env,lst,FALSE);
+	if(size <= 0){
+	  size = SIZE;
+	}
+  }
 
   switch(scope){
   case ARGMENT:
@@ -1242,8 +1260,9 @@ static list_t *gen_decl_var(gen_info_t *gi,env_t *env,list_t *lst){
 #endif
 
   name = car(lst);
-  sym = factory_symbol(gi,env,cdr(lst),LOCAL);
+  sym = factory_symbol(gi,env,cdr(lst),LOCAL,name);
   insert_obj(env,name,sym);
+  sym = lookup_obj(env,name);
   val = add_symbol(make_null(),name);
 
   return val;
@@ -1540,7 +1559,6 @@ static list_t *gen_call_func_ptr(gen_info_t *gi,env_t *env,symbol_t *sym,list_t 
 
 #ifdef __LINUX__
   gen_body(gi,env,lst);
-  //pop(gi,"rax");
   EMIT(gi,"call *#rax");
 #endif
 
@@ -2426,8 +2444,14 @@ static list_t *gen_sizeof_sym(gen_info_t *gi,env_t *env,list_t *lst){
   } else {
 	val = make_null();
 	size = calc(gi,lst,env);
+	sym = lookup_obj(env,name);
+	if(!sym){
+	  error(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),"undefined variable '%s' ",(string_t)car(lst));
+	  return make_null();
+	}
+	size = SYMBOL_GET_SIZE(sym);
 	EMIT(gi,"movq $%d,#rax",size);
-	val = add_number(val,SYMBOL_GET_SIZE(sym));
+	val = add_number(val,size);
   }
 
   return val;
@@ -2825,6 +2849,7 @@ static int gen_func_parms_size(gen_info_t *gi,env_t *env,list_t *lst){
   list_t *other_lst;
   int localarea;
   int i;
+  int size;
 
 #ifdef __DEBUG__
   printf("gen_func_parms_size\n");
@@ -2836,15 +2861,30 @@ static int gen_func_parms_size(gen_info_t *gi,env_t *env,list_t *lst){
   other_lst = car(cdr(cdr(lst)));
 
   for(p = int_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
-	localarea += select_size(gi,env,cdr(car(p)),FALSE);
+	size = select_size(gi,env,cdr(car(p)),FALSE);
+	if(size <= 0){
+	  localarea += SIZE;
+	} else {
+	  localarea += size;
+	}
   }
 
   for(p = float_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
-	localarea += select_size(gi,env,cdr(car(p)),FALSE);
+	size = select_size(gi,env,cdr(car(p)),FALSE);
+	if(size <= 0){
+	  localarea += SIZE;
+	} else {
+	  localarea += size;
+	}
   }
 
   for(p = other_lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
-	localarea += select_size(gi,env,cdr(car(p)),FALSE);
+	size = select_size(gi,env,cdr(car(p)),FALSE);
+	if(size <= 0){
+	  localarea += SIZE;
+	} else {
+	  localarea += select_size(gi,env,cdr(car(p)),FALSE);
+	}
   }
 
   return localarea;
@@ -2858,17 +2898,17 @@ static int gen_func_parm(gen_info_t *gi,env_t *env,list_t *lst,int index,int reg
   printf("gen_func_parm\n");
 #endif
 
+  name = car(lst);
   if(index < regs){
-	sym = factory_symbol(gi,env,cdr(lst),ARGMENT);
+	sym = factory_symbol(gi,env,cdr(lst),ARGMENT,name);
 	if(flg){
 	  load_parm_float(gi,sym,index);
 	} else {
 	  load_parm(gi,sym,index);
 	}
   } else {
-	sym = factory_symbol(gi,env,cdr(lst),ARGMENT_ON_STACK);
+	sym = factory_symbol(gi,env,cdr(lst),ARGMENT_ON_STACK,name);
   }
-  name = car(lst);
   insert_obj(env,name,sym);
 
   return SYMBOL_GET_SIZE(sym);
@@ -2888,7 +2928,7 @@ static int gen_func_parm_rest(gen_info_t *gi,env_t *env,list_t *lst,func_t *func
 	return 0;
   } else {
 	name = car(lst);
-	sym = factory_symbol(gi,env,cdr(lst),ARGMENT);
+	sym = factory_symbol(gi,env,cdr(lst),ARGMENT,name);
 	load_parm_rest(gi,env,sym);
 	insert_obj(env,name,sym);
   }
@@ -3224,7 +3264,11 @@ static list_t *gen_struct_assign(gen_info_t *gi,env_t *env,list_t *lst){
 	sym = car(val);
   }
 
-  com = lookup_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+  printf("------------------------\n");
+  dump_ast(SYMBOL_GET_TYPE_LST(sym));
+  printf("------------------------\n");
+  string_t n = car(tail(SYMBOL_GET_TYPE_LST(sym)));
+  com = lookup_obj(env,n);
   if(!com){
 	exit(1);
   }
@@ -3893,7 +3937,7 @@ static int gen_array_values(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cn
   type = LIST_GET_TYPE(lst);
   switch(type){
   case NULL_LIST:
-	val = (pos >= 0) ? -cnt : pos;
+	val = (pos > 0) ? pos : cnt;
 	break;
   case LIST:
 	val = gen_array_values(gi,env,cdr(lst),pos,cnt,sym);
@@ -3928,7 +3972,8 @@ static int gen_array_value(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cnt
   case TYPE_SIGNED:
   case TYPE_UNSIGNED:
 	gen_operand(gi,env,lst);
-	offset = pos;
+	offset = SYMBOL_GET_OFFSET(sym) + SYMBOL_GET_SIZE(sym) - pos;
+	//offset = SYMBOL_GET_SIZE(sym) + SYMBOL_GET_OFFSET(sym) - pos;
 	EMIT(gi,"%s #%s, %d(#rbp)",select_inst(cnt),select_reg(cnt),offset);
 	break;
   case TYPE_FLOAT:
@@ -3940,7 +3985,7 @@ static int gen_array_value(gen_info_t *gi,env_t *env,list_t *lst,int pos,int cnt
 	break;
   }
 
-  return offset - cnt;
+  return pos + cnt;
 }
 
 static void gen_cast_char(gen_info_t *gi,type_t src_type){
@@ -4070,7 +4115,7 @@ static list_t *gen_enum_value(gen_info_t *gi,env_t *env,list_t *lst){
 
   list_t *val;
 
-  val = lookup(env,lst);
+  val = lookup_obj(env,car(lst));
   if(IS_NULL_LIST(val)){
 	return make_null();
   }
@@ -4429,7 +4474,7 @@ static integer_t select_size(gen_info_t *gi,env_t  *env,list_t *lst,bool_t flg){
 #ifdef __DEBUG__
   printf("select_size\n");
 #endif
-
+  dump_ast(lst);
   type = LIST_GET_TYPE(lst);
   switch(type){
   case NULL_LIST:
@@ -4490,6 +4535,8 @@ static integer_t select_size(gen_info_t *gi,env_t  *env,list_t *lst,bool_t flg){
 	  return select_compound_type(env,cdr(lst));
 	} else if(STRCMP(car(lst),ENUM)){
 	  return sizeof(int);
+	} else if(STRCMP(car(lst),INIT_LIST)){
+	  return length_of_list(car(cdr(lst)));
 	} else {
 	  sym = lookup_obj(env,car(lst));
 	  if(!sym){
@@ -4811,6 +4858,7 @@ static int calc(gen_info_t *gi,list_t *lst,env_t *env){
 	break;
   }
 
+  DUMP_AST(lst);
   exit(1);
 }
 
@@ -4852,6 +4900,8 @@ static int calc_symbol(gen_info_t *gi,list_t *lst,env_t *env){
 	return calc_bit_shift(gi,lst,env);
   } else if(STRCMP(name,TERNARY)){
 	return calc_ternary(gi,cdr(lst),env);
+  } else if(STRCMP(name,UNDEFINED_SIZE)){
+	return -1;
   } else {
 	if(gi->eval_type){
 	  return calc_load(gi,env,name);

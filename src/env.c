@@ -48,35 +48,6 @@ env_t *extend_env(env_t *env){
   return new_env;
 }
 
-void insert_symbol(env_t *env,string_t name,symbol_t *symbol){
-
-  int hash_val;
-  list_t *lst;
-
-  hash_val = hash(name);
-  lst = cons(make_null(),symbol);
-  lst = add_symbol(lst,name);
-  lst = add_list(make_null(),lst);
-  env->table[hash_val] = concat(env->table[hash_val],lst);
-  
-  return;
-}
-
-void insert(env_t *env,list_t *var,list_t *val){
-  
-  int hash_val;
-  list_t *lst;
-  
-  hash_val = hash(CAR(var));
-  
-  lst = val;
-  lst = add_symbol(lst,(char *)CAR(var));
-  lst = add_list(make_null(),lst);
-  env->table[hash_val] = concat(env->table[hash_val],lst);
-  
-  return;
-}
-
 void insert_obj(env_t *env,string_t name,void *obj){
   
   int hash_val;
@@ -86,37 +57,9 @@ void insert_obj(env_t *env,string_t name,void *obj){
   lst = cons(make_null(),obj);
   lst = add_symbol(lst,name);
   lst = add_list(make_null(),lst);
-  env->table[hash_val] = concat(env->table[hash_val],lst);
-  
+  env->table[hash_val] = concat(lst,env->table[hash_val]);
+
   return;
-}
-
-list_t *lookup(env_t *env,list_t *var){
-
-  list_t *elst;
-  env_t *e;
-  int hash_val;
-
-  hash_val = hash(car(var));
-  e = env;
-  while(TRUE){
-    elst = e->table[hash_val];
-    while(IS_NOT_NULL_LIST(elst)){
-      list_t *name = car(elst);
-      if(STRCMP(car(name),car(var))){
-		return cdr(car(elst));
-      } else {
-		elst = cdr(elst);
-      }
-    }
-
-    if(IS_TOP_LEVEL_ENV(e) && IS_NULL_LIST(elst)){
-      break;
-    }
-    e = NEXT_ENV(e);
-  }
-
-  return make_null();
 }
 
 void *lookup_obj(env_t *env,string_t name){
