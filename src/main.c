@@ -1,7 +1,8 @@
 // 
 //
 //  Copyright 2019 Shota Hisai. Released under the MIT license.
-////
+//
+//
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -121,6 +122,7 @@ static void cgen(list_t *ast,file_t  *file,string_t name,set_t *set){
 
   gen_info_t *gi;
   env_t *env;
+  env_t *cenv;
   file_t *output_file;
 #ifdef __DEBUG__
   printf("cgen\n");
@@ -129,11 +131,12 @@ static void cgen(list_t *ast,file_t  *file,string_t name,set_t *set){
   gi = create_gen_info();
   GEN_INFO_SET_SET(gi,set);
   env = make_env();
+  cenv = make_env();
   output_file = create_outfile(name);
   GEN_INFO_SET_SRC(gi,file);
   GEN_INF_SET_FILE(gi,output_file);
   file_open(output_file);
-  gen(gi,env,ast);
+  gen(gi,env,cenv,ast);
   file_close(output_file);
   fre(output_file);
   

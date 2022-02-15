@@ -8,24 +8,12 @@
 #include "common.h"
 #include "util.h"
 
-env_t *genv = NULL;
 
 #define NEXT_ENV(e) e->next
 #define IS_TOP_LEVEL_ENV(e) (e == e->next)
 
 static void init_env(env_t *env);
 static env_t *alloc_env();
-
-env_t *make_genv(){
-  
-  if(!genv){
-    genv = alloc_env();
-    init_env(genv);
-    genv->next = genv;
-  }
-  
-  return genv;
-}
 
 env_t *make_env(){
 

@@ -15,7 +15,6 @@ struct env_t {
   env_t *next;
 };
 
-env_t *make_genv();
 env_t *make_env();
 env_t *extend_env(env_t *env);
 void insert_obj(env_t *env,string_t name,void *obj);

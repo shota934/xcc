@@ -42,7 +42,7 @@ struct gen_info_t {
 };
 
 gen_info_t *create_gen_info();
-list_t *gen(gen_info_t *gi,env_t *env,list_t *lst);
+list_t *gen(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 void delete_gen_info(gen_info_t *gi);
 void init_stack_pos(gen_info_t *gi);
 
