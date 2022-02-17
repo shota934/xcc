@@ -4,44 +4,44 @@
 #include "func.h"
 #include "compound_type.h"
 
-static type_t check_op_type_list(env_t *env,list_t *lst);
-static type_t check_op_type_sym(env_t *env,list_t *lst);
+static type_t check_op_type_list(env_t *env,env_t *cenv,list_t *lst);
+static type_t check_op_type_sym(env_t *env,env_t *cenv,list_t *lst);
 static type_t check_op_type_string();
 static type_t check_op_type_int();
 static type_t check_op_type_flot();
 static type_t check_op_type_char();
-static type_t check_arith_op(env_t *env,list_t *lst);
+static type_t check_arith_op(env_t *env,env_t *cenv,list_t *lst);
 static type_t check_not_op(env_t *env,list_t *lst);
-static type_t check_bit_op(env_t *env,list_t *lst);
-static type_t check_bit_shift_op(env_t *env,list_t *lst);
+static type_t check_bit_op(env_t *env,env_t *cenv,list_t *lst);
+static type_t check_bit_shift_op(env_t *env,env_t *cenv,list_t *lst);
 
 static type_t check_op_func(env_t *env,list_t *lst);
-static type_t check_op_dot(env_t *env,list_t *lst);
-static type_t check_op_ref(env_t *env,list_t *lst);
-static type_t check_op_array(env_t *env,list_t *lst);
-static type_t check_op_cmp(env_t *env,list_t *lst);
+static type_t check_op_dot(env_t *env,env_t *cenv,list_t *lst);
+static type_t check_op_ref(env_t *env,env_t *cenv,list_t *lst);
+static type_t check_op_array(env_t *env,env_t *cenv,list_t *lst);
+static type_t check_op_cmp(env_t *env,env_t *cenv,list_t *lst);
 static type_t convert_integer(type_t type);
 static type_t check_type_enum();
-static type_t check_sizeof(env_t *env,list_t *lst);
+static type_t check_sizeof(env_t *env,env_t *cenv,list_t *lst);
 
 static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst);
 static type_t analyze_utype(list_t *lst,type_t ty);
 static type_t analyze_array(env_t *env,list_t *type_lst,list_t *lst);
 
 
-type_t check_type(env_t *env,list_t *lst){
+type_t check_type(env_t *env,env_t *cenv,list_t *lst){
 
   type_t val;
 #ifdef __DEBUG__
   printf("check_type\n");
 #endif
 
-  val = check_op_type_list(env,lst);
+  val = check_op_type_list(env,cenv,lst);
 
   return val;
 }
 
-static type_t check_op_type_list(env_t *env,list_t *lst){
+static type_t check_op_type_list(env_t *env,env_t *cenv,list_t *lst){
 
   type_t val;
   list_type_t type;
@@ -52,10 +52,10 @@ static type_t check_op_type_list(env_t *env,list_t *lst){
   type = LIST_GET_TYPE(lst);
   switch(type){
   case LIST:
-	val = check_op_type_list(env,car(lst));
+	val = check_op_type_list(env,cenv,car(lst));
 	break;
   case SYMBOL:
-	val = check_op_type_sym(env,lst);
+	val = check_op_type_sym(env,cenv,lst);
 	break;
   case INTEGER:
 	val = check_op_type_int();
@@ -95,7 +95,7 @@ static type_t check_op_type_char(){
   return TYPE_CHAR;
 }
 
-static type_t check_op_type_sym(env_t *env,list_t *lst){
+static type_t check_op_type_sym(env_t *env,env_t *cenv,list_t *lst){
 
   string_t name;
   symbol_t *sym;
@@ -107,38 +107,38 @@ static type_t check_op_type_sym(env_t *env,list_t *lst){
 
   name = car(lst);
   if(STRCMP(name,ADD)){
-	return check_arith_op(env,cdr(lst));
+	return check_arith_op(env,cenv,cdr(lst));
   } else if(STRCMP(name,SUB)){
-	return check_arith_op(env,cdr(lst));
+	return check_arith_op(env,cenv,cdr(lst));
   } else if(STRCMP(name,MUL)){
-	return check_arith_op(env,cdr(lst));
+	return check_arith_op(env,cenv,cdr(lst));
   } else if(STRCMP(name,DIV)){
-	return check_arith_op(env,cdr(lst));
+	return check_arith_op(env,cenv,cdr(lst));
   } else if(STRCMP(name,MOD)){
-	return check_arith_op(env,cdr(lst));
+	return check_arith_op(env,cenv,cdr(lst));
   } else if(STRCMP(FUNC_CALL,name)){
 	return check_op_func(env,cdr(lst));
   } else if(STRCMP(DOT,name)){
-	return check_op_dot(env,cdr(lst));
+	return check_op_dot(env,cenv,cdr(lst));
   } else if(STRCMP(REF_MEMBER_ACCESS,name)){
-	return check_op_ref(env,cdr(lst));
+	return check_op_ref(env,cenv,cdr(lst));
   } else if(STRCMP(ARRAY,name)){
-	return check_op_array(env,cdr(lst));
+	return check_op_array(env,cenv,cdr(lst));
   } else if(STRCMP(LESS,name)
 			|| STRCMP(GREATER,name)
 			|| STRCMP(LESS_EQAUL,name)
 			|| STRCMP(NOT_EQUAL,name)
 			|| STRCMP(EQUAL,name)){
-	return check_op_cmp(env,cdr(lst));
+	return check_op_cmp(env,cenv,cdr(lst));
   } else if(STRCMP(BIT_LEFT_SHIFT,name)
 			|| (STRCMP(BIT_RIGHT_SHIFT,name))){
-	return check_bit_shift_op(env,cdr(lst));
+	return check_bit_shift_op(env,cenv,cdr(lst));
   } else if(STRCMP(AND,name)
 			|| STRCMP(OR,name)
 			|| STRCMP(XOR,name)){
-	return check_bit_op(env,cdr(lst));
+	return check_bit_op(env,cenv,cdr(lst));
   } else if(STRCMP(SIZEOF,name)){
-	return check_sizeof(env,cdr(lst));
+	return check_sizeof(env,cenv,cdr(lst));
   } else if(STRCMP(NOT,name)){
 	return check_not_op(env,cdr(lst));
   } else {
@@ -180,7 +180,7 @@ static type_t check_op_type_flot(){
   return TYPE_DOUBLE;
 }
 
-static type_t check_arith_op(env_t *env,list_t *lst){
+static type_t check_arith_op(env_t *env,env_t *cenv,list_t *lst){
 
   type_t l;
   type_t r;
@@ -189,8 +189,8 @@ static type_t check_arith_op(env_t *env,list_t *lst){
   printf("check_arith_op\n");
 #endif
 
-  l = convert_integer(check_op_type_list(env,lst));
-  r = convert_integer(check_op_type_list(env,cdr(lst)));
+  l = convert_integer(check_op_type_list(env,cenv,lst));
+  r = convert_integer(check_op_type_list(env,cenv,cdr(lst)));
 
   if(l == r){
 	return l;
@@ -224,7 +224,7 @@ static type_t check_not_op(env_t *env,list_t *lst){
   return -1;
 }
 
-static type_t check_bit_op(env_t *env,list_t *lst){
+static type_t check_bit_op(env_t *env,env_t *cenv,list_t *lst){
 
   type_t l;
   type_t r;
@@ -233,8 +233,8 @@ static type_t check_bit_op(env_t *env,list_t *lst){
   printf("check_bit_op\n");
 #endif
 
-  l = convert_integer(check_op_type_list(env,lst));
-  r = convert_integer(check_op_type_list(env,cdr(lst)));
+  l = convert_integer(check_op_type_list(env,cenv,lst));
+  r = convert_integer(check_op_type_list(env,cenv,cdr(lst)));
   if(l == r){
 	return l;
   }
@@ -242,7 +242,7 @@ static type_t check_bit_op(env_t *env,list_t *lst){
   return -1;
 }
 
-static type_t check_bit_shift_op(env_t *env,list_t *lst){
+static type_t check_bit_shift_op(env_t *env,env_t *cenv,list_t *lst){
 
   type_t l;
   type_t r;
@@ -251,8 +251,8 @@ static type_t check_bit_shift_op(env_t *env,list_t *lst){
   printf("check_bit_shift_op\n");
 #endif
 
-  l = convert_integer(check_op_type_list(env,lst));
-  r = convert_integer(check_op_type_list(env,cdr(lst)));
+  l = convert_integer(check_op_type_list(env,cenv,lst));
+  r = convert_integer(check_op_type_list(env,cenv,cdr(lst)));
   if(l == r){
 	return l;
   }
@@ -289,7 +289,7 @@ static type_t check_op_func(env_t *env,list_t *lst){
   }
 }
 
-static type_t check_op_dot(env_t *env,list_t *lst){
+static type_t check_op_dot(env_t *env,env_t *cenv,list_t *lst){
 
   type_t type;
   symbol_t *sym;
@@ -304,13 +304,13 @@ static type_t check_op_dot(env_t *env,list_t *lst){
 	exit(1);
   }
 
-  com = get_comp_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+  com = get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
   if(!com){
 	exit(1);
   }
 
   if(IS_LIST(cdr(lst))){
-	type = check_op_type_list(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
+	type = check_op_type_list(COMPOUND_TYPE_GET_ENV(com),cenv,car(cdr(lst)));
   } else {
 	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
 	type = analyze_type(env,SYMBOL_GET_TYPE_LST(sym_mem),make_null());
@@ -319,7 +319,7 @@ static type_t check_op_dot(env_t *env,list_t *lst){
   return type;
 }
 
-static type_t check_op_ref(env_t *env,list_t *lst){
+static type_t check_op_ref(env_t *env,env_t *cenv,list_t *lst){
 
   type_t type;
   symbol_t *sym;
@@ -335,13 +335,13 @@ static type_t check_op_ref(env_t *env,list_t *lst){
 	exit(1);
   }
 
-  com = get_comp_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+  com = get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
   if(!com){
 	exit(1);
   }
 
   if(IS_LIST(cdr(lst))){
-	type = check_op_type_list(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
+	type = check_op_type_list(COMPOUND_TYPE_GET_ENV(com),cenv,car(cdr(lst)));
   } else {
 	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
 	type = analyze_type(env,SYMBOL_GET_TYPE_LST(sym_mem),make_null());
@@ -350,7 +350,7 @@ static type_t check_op_ref(env_t *env,list_t *lst){
   return type;
 }
 
-static type_t check_op_array(env_t *env,list_t *lst){
+static type_t check_op_array(env_t *env,env_t *cenv,list_t *lst){
 
 #ifdef __DEBUG__
   printf("check_op_array\n");
@@ -359,7 +359,7 @@ static type_t check_op_array(env_t *env,list_t *lst){
   return TYPE_ARRAY;
 }
 
-static type_t check_op_cmp(env_t *env,list_t *lst){
+static type_t check_op_cmp(env_t *env,env_t *cenv,list_t *lst){
 
   type_t l;
   type_t r;
@@ -368,8 +368,8 @@ static type_t check_op_cmp(env_t *env,list_t *lst){
   printf("check_op_cmp\n");
 #endif
 
-  l = convert_integer(check_op_type_list(env,lst));
-  r = convert_integer(check_op_type_list(env,cdr(lst)));
+  l = convert_integer(check_op_type_list(env,cenv,lst));
+  r = convert_integer(check_op_type_list(env,cenv,cdr(lst)));
   if(l == r){
 	return l;
   }
@@ -407,7 +407,7 @@ static type_t check_type_enum(){
   return TYPE_ENUM;
 }
 
-static type_t check_sizeof(env_t *env,list_t *lst){
+static type_t check_sizeof(env_t *env,env_t *cenv,list_t *lst){
 
 #ifdef __DEBUG__
   printf("check_sizeof\n");

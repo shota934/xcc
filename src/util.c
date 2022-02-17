@@ -392,7 +392,7 @@ symbol_t *lookup_member(env_t *env,string_t name){
   return sym;
 }
 
-type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
+type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 
   string_t name;
   list_type_t type;
@@ -407,10 +407,10 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 	exit(1);
 	break;
   case INTEGER:
-	return conv_type(env,cdr(type_lst),lst);
+	return conv_type(env,cenv,cdr(type_lst),lst);
 	break;
   case LIST:
-	return conv_type(env,car(type_lst),lst);
+	return conv_type(env,cenv,car(type_lst),lst);
 	break;
   default:
 	name = car(type_lst);
@@ -446,11 +446,17 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 	  if(IS_NULL_LIST(lst)){
 		return TYPE_ARRAY;
 	  }
-	  return conv_type(env,cdr(type_lst),lst);
+	  return conv_type(env,cenv,cdr(type_lst),lst);
 	} else {
 	  symbol_t *sym;
 	  sym = lookup_obj(env,name);
+
 	  if(!sym){
+		sym = lookup_obj(cenv,name);
+	  }
+
+	  if(!sym){
+		printf("name : [%s]\n",name);
 		exit(1);
 	  }
 
@@ -462,7 +468,7 @@ type_t conv_type(env_t *env,list_t *type_lst,list_t *lst){
 		  return SYMBOL_GET_SYM_TYPE(sym);
 		  break;
 		case TYPE_TYPE:
-		  return conv_type(env,SYMBOL_GET_TYPE_LST(sym),lst);
+		  return conv_type(env,cenv,SYMBOL_GET_TYPE_LST(sym),lst);
 		  break;
 		default:
 		  printf("name : %s\n",name);
@@ -543,18 +549,26 @@ bool_t is_integertype(list_t *lst){
   return FALSE;
 }
 
-compound_def_t *get_comp_obj(env_t *env,string_t name){
+compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
 
   object_t *obj;
   symbol_t *sym;
 
   obj = lookup_obj(env,name);
+  if(!obj){
+	return lookup_obj(cenv,name);
+  }
+
+  if(!obj){
+	return NULL;
+  }
+
   switch(OBJ_GET_TYPE(obj)){
   case TYPE_SYMBOL:
 	sym = (symbol_t *)obj;
 	switch(SYMBOL_GET_SYM_TYPE(sym)){
 	case TYPE_TYPE:
-	  return get_comp_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+	  return get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
 	  break;
 	}
 	break;

@@ -3,6 +3,6 @@
 #include "env.h"
 #include "list.h"
 
-type_t check_type(env_t *env,list_t *lst);
+type_t check_type(env_t *env,env_t *cenv,list_t *lst);
 
 #endif
