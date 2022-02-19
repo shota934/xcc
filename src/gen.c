@@ -4523,6 +4523,8 @@ static integer_t select_size(gen_info_t *gi,env_t  *env,env_t *cenv,list_t *lst,
 			return COMPOUND_TYPE_GET_SIZE(com);
 		  }
 		  return select_size(gi,env,cenv,SYMBOL_GET_TYPE_LST(sym),FALSE);
+		} else {
+		  return SYMBOL_GET_SIZE(sym);
 		}
 	  }
 	}
