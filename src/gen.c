@@ -3816,8 +3816,8 @@ static int gen_struct_values(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,s
 	  exit(1);
 	}
 
-	sub_com = lookup_obj(env,car(tail(SYMBOL_GET_TYPE_LST(sub_sym))));
-	if(!com){
+	sub_com = get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sub_sym))));
+	if(!sub_com){
 	  exit(1);
 	}
 	gen_struct_values(gi,env,cenv,car(lst),sub_sym,sub_com,COMPOUND_TYPE_GET_MEMBERS(sub_com),SYMBOL_GET_OFFSET(sym));
@@ -4347,6 +4347,7 @@ static list_t *eval_type(gen_info_t *gi,env_t  *env,env_t *cenv,list_t *lst){
 
   list_t *l;
   symbol_t *sym;
+  compound_def_t *com;
   string_t name;
 
 #ifdef __DEBUG__
@@ -4418,6 +4419,8 @@ static list_t *eval_type(gen_info_t *gi,env_t  *env,env_t *cenv,list_t *lst){
 
 	  if(sym->obj.type == TYPE_COMPOUND){
 		return lst;
+	  } else if(sym->type == TYPE_TYPE){
+		return SYMBOL_GET_TYPE_LST(sym);
 	  } else {
 		return eval_type(gi,env,cenv,SYMBOL_GET_TYPE_LST(sym));
 	  }
@@ -4514,7 +4517,13 @@ static integer_t select_size(gen_info_t *gi,env_t  *env,env_t *cenv,list_t *lst,
 		com = (compound_def_t *)sym;
 		return COMPOUND_TYPE_GET_SIZE(com);
 	  } else {
-		return select_size(gi,env,cenv,SYMBOL_GET_TYPE_LST(sym),FALSE);
+		if(sym->type == TYPE_TYPE){
+		  com = (compound_def_t *)lookup_obj(cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+		  if(com){
+			return COMPOUND_TYPE_GET_SIZE(com);
+		  }
+		  return select_size(gi,env,cenv,SYMBOL_GET_TYPE_LST(sym),FALSE);
+		}
 	  }
 	}
 	exit(1);

@@ -16,7 +16,7 @@
 #include "compound_type.h"
 
 static bool_t is_func_qualifier(list_t *lst);
-static type_t conv_compound_type(symbol_t *sym);
+static type_t conv_compound_type(compound_def_t *com);
 
 int hash(char *name){
 
@@ -396,6 +396,8 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 
   string_t name;
   list_type_t type;
+  symbol_t *sym;
+  compound_def_t *com;
 
 #ifdef __DEBUG__
   printf("conv_type\n");
@@ -448,9 +450,7 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 	  }
 	  return conv_type(env,cenv,cdr(type_lst),lst);
 	} else {
-	  symbol_t *sym;
 	  sym = lookup_obj(env,name);
-
 	  if(!sym){
 		sym = lookup_obj(cenv,name);
 	  }
@@ -461,13 +461,17 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 	  }
 
 	  if(sym->obj.type == TYPE_COMPOUND){
-		return conv_compound_type(sym);
+		return conv_compound_type((compound_def_t *)sym);
 	  } else {
 		switch(SYMBOL_GET_SYM_TYPE(sym)){
 		case TYPE_ENUM:
 		  return SYMBOL_GET_SYM_TYPE(sym);
 		  break;
 		case TYPE_TYPE:
+		  com = lookup_obj(cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+		  if(com){
+			return conv_compound_type(com);
+		  }
 		  return conv_type(env,cenv,SYMBOL_GET_TYPE_LST(sym),lst);
 		  break;
 		default:
@@ -483,11 +487,8 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
   }
 }
 
-type_t conv_compound_type(symbol_t *sym){
+type_t conv_compound_type(compound_def_t *com){
 
-  compound_def_t *com;
-
-  com = (compound_def_t *)sym;
   switch(COMPOUND_TYPE_GET_TYPE(com)){
   case STRUCT_COMPOUND_TYPE:
 	return TYPE_STRUCT;
@@ -553,12 +554,9 @@ compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
 
   object_t *obj;
   symbol_t *sym;
+  list_t *l;
 
-  obj = lookup_obj(env,name);
-  if(!obj){
-	return lookup_obj(cenv,name);
-  }
-
+  obj = lookup_obj(cenv,name);
   if(!obj){
 	return NULL;
   }
@@ -568,10 +566,15 @@ compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
 	sym = (symbol_t *)obj;
 	switch(SYMBOL_GET_SYM_TYPE(sym)){
 	case TYPE_TYPE:
-	  return get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+	  l = tail(SYMBOL_GET_TYPE_LST(sym));
+	  if(IS_NULL_LIST(l)){
+		return NULL;
+	  }
+	  return get_comp_obj(env,cenv,car(l));
 	  break;
+	default:
+	  exit(1);
 	}
-	break;
   case TYPE_COMPOUND:
 	return (compound_def_t *)obj;
 	break;
