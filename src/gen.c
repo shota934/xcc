@@ -1285,6 +1285,8 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   if(is_name(l)){
 	l = gen_operand(gi,env,cenv,l);
 	gi->assign_type = get_type(l);
+  } else if(is_array(l)){
+	push(gi,"rcx");
   }
 
   ASSIGN_OFF(gi);
@@ -1313,6 +1315,7 @@ static list_t *gen_assign_inst(gen_info_t *gi,list_t *lst){
 
   val = make_null();
   if(is_array(lst)){
+	pop(gi,"rcx");
 	size = *(integer_t *)car(cdr(lst));
 	op = select_inst(size);
 	reg = select_reg(size);
@@ -1347,23 +1350,36 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
   int size;
   int offset;
   type_t type;
+  bool_t flg;
 
 #ifdef __DEBUG__
   printf("gen_complex_symbol\n");
 #endif
 
+  flg = FALSE;
   val = make_null();
   if(!IS_SYMBOL(lst)){
 	return gen_symbol_var(gi,env,cenv,sym,lst);
   } else {
 	name = car(lst);
 	if(STRCMP(ARRAY,name)){
+	  
+	  if(IS_ASSIGN(gi)){
+		ASSIGN_OFF(gi);
+		flg = TRUE;
+	  }
+	  
 	  val = gen_array(gi,env,cenv,lst,sym,FALSE,make_null());
 	  type = conv_type(env,cenv,tail(SYMBOL_GET_TYPE_LST(sym)),lst);
 	  if((type == TYPE_STRUCT)
 		 || (type == TYPE_UNION)){
 		val = add_number(val,type);
 		val = cons(val,sym);
+	  }
+	  
+	  if(flg){
+		ASSIGN_ON(gi);
+		flg = FALSE;
 	  }
 	} else if(STRCMP(ADDRESS,name)){
 	  offset = SYMBOL_GET_OFFSET(sym);
@@ -2192,7 +2208,6 @@ static list_t *gen_array(gen_info_t *gi,env_t *env, env_t *cenv,list_t *lst,symb
 #ifdef __DEBUG__
   printf("gen_array\n");
 #endif
-
   val = make_null();
   if(IS_NULL_LIST(lst)){
 	pop(gi,"rcx");
