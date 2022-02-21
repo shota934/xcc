@@ -2379,7 +2379,7 @@ static list_t *gen_sizeof(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	val = gen_operand(gi,env,cenv,val);
 	break;
   case CHARACTER:
-	val = add_number(val,sizeof(char));
+	val = add_number(val,sizeof(int));
 	val = gen_operand(gi,env,cenv,val);
 	break;
   case DECIMAL:
