@@ -177,7 +177,7 @@ static list_t *categorize_type(env_t *env,list_t *lst);
 static list_t *lookup_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_local_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym);
-static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg);
+static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol_t *sym);
 static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj);
 static list_t *gen_enum_load(gen_info_t *gi,enumdef_t *enumdef);
 
@@ -1363,7 +1363,7 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
   } else {
 	name = car(lst);
 	if(STRCMP(ARRAY,name)){
-	  
+
 	  if(IS_ASSIGN(gi)){
 		ASSIGN_OFF(gi);
 		flg = TRUE;
@@ -2280,13 +2280,12 @@ static list_t *gen_bin_cmp_op(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst)
 #ifdef __DEBUG__
   printf("gen_bin_cmp_op\n");
 #endif
-
   inst = gen_cmp_inst(lst);
   l = cdr(lst);
-  gen_body(gi,env,cenv,l);
+  gen_operand(gi,env,cenv,l);
   push(gi,"rax");
   r = cdr(cdr(lst));
-  gen_body(gi,env,cenv,r);
+  gen_operand(gi,env,cenv,r);
   pop(gi,"rcx");
   EMIT(gi,"cmp #eax, #ecx");
 
@@ -2376,7 +2375,7 @@ static list_t *gen_sizeof(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	val = gen_operand(gi,env,cenv,val);
 	break;
   case STRING:
-	val = add_number(val,strlen((string_t)car(lst)));
+	val = add_number(val,strlen((string_t)car(lst)) - 2);
 	val = gen_operand(gi,env,cenv,val);
 	break;
   case CHARACTER:
@@ -2626,13 +2625,13 @@ static list_t *gen_local_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,
 
   val = gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
   if(!IS_OBJECT(val)){
-	val = gen_load_inst(gi,val,FALSE);
+	val = gen_load_inst(gi,val,FALSE,sym);
   }
 
   return val;
 }
 
-static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg){
+static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol_t *sym){
 
   list_t *val;
   string_t inst;
@@ -2653,7 +2652,17 @@ static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg){
   if(gi->call_flag
 	 && is_array_type(cdr(cdr(cdr(lst))))){
 	offset = *(integer_t *)car(cdr(cdr(lst)));
-	EMIT(gi,"leaq %d(#rbp),#rax",offset);
+	switch(SYMBOL_GET_SCOPE(sym)){
+	case LOCAL:
+	  EMIT(gi,"leaq %d(#rbp),#rax",offset);
+	  break;
+	case ARGMENT:
+	  EMIT(gi,"movq %d(#rbp),#rax",offset);
+	  break;
+	default:
+	  exit(1);
+	  break;
+	}
 	val = add_number(val,*(integer_t *)car(cdr(lst)));
 	val = add_number(val,SIZE);
   } else if(is_array(lst)){
@@ -2670,7 +2679,7 @@ static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg){
 	}
 	EMIT(gi,"movq (#rcx),#rax");
 	val = add_number(val,SIZE);
-	val = concat(val,gen_load_inst(gi,cdr(lst),TRUE));
+	val = concat(val,gen_load_inst(gi,cdr(lst),TRUE,sym));
   } else if(is_address(lst)){
 	offset = *(integer_t *)car(cdr(lst));
 	EMIT(gi,"leaq %d(#rbp),#rax",offset);
