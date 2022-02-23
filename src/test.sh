@@ -96,5 +96,7 @@ try 0   test/test_variable_argment.c    "Passed test variable argment for only i
 try 0   test/test_list_of_function_pointer.c "Passed test list of function pointer."
 try 0   test/test_variable_argment_pointer_case.c  "Passed test variable argment for only pointer value."
 try 0   test/test_array_sort.c                     "Passed test array sort."
+try 0   test/test_check_char.c                     "Passed test check char."
+try 0   test/test_dynamic_array.c                  "Passed test dynamic array."
 
 echo "Passed all Test cases."
