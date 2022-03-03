@@ -99,4 +99,6 @@ try 0   test/test_array_sort.c                     "Passed test array sort."
 try 0   test/test_check_char.c                     "Passed test check char."
 try 0   test/test_dynamic_array.c                  "Passed test dynamic array."
 try 0   test/test_ptr_str_operation.c              "Passed test pointer string operation."
+try 0   test/test_cast_and_increment.c             "Passed test cast and increment for pointer."
+
 echo "Passed all Test cases."

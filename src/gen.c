@@ -3692,23 +3692,37 @@ static list_t *gen_increment(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   string_t reg;
   string_t op;
   list_t *l;
-  int szl;
-  int offset;
+  list_t *type_lst;
+  integer_t szl;
+  integer_t size;
+  integer_t offset;
   symbol_t *sym;
+  list_t *val;
 
 #ifdef __DEBUG__
   printf("gen_increment\n");
 #endif
 
+  sym = lookup_obj(env,car(cdr(lst)));
   op = choose_increment_op(lst);
   l = gen_operand(gi,env,cenv,cdr(lst));
   szl = get_operand_size(l);
   if(szl < SIZE){
 	EMIT(gi,"movslq #%s,#%s",select_reg(szl),"rax");
   }
+
+  type_lst = SYMBOL_GET_TYPE_LST(sym);
+  if(is_pointer(type_lst)){
+	size = select_size(gi,env,cenv,make_null(),cdr(type_lst),TRUE);
+  } else {
+	size = 1;
+  }
+
   push(gi,"rax");
-  EMIT(gi,"movq $%d, #rax",1);
+  EMIT(gi,"movq $%d, #rax",size);
   pop(gi,"rcx");
+
+  type_lst = SYMBOL_GET_TYPE_LST(sym);
   if((STRCMP(car(lst),DECREMENT))
      || (STRCMP(car(lst),DECREMNT_ASSING))){
     EMIT(gi,"%s #rax, #rcx",op);
@@ -3717,19 +3731,23 @@ static list_t *gen_increment(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
     EMIT(gi,"%s #rcx, #rax",op);
   }
 
-  sym = lookup_obj(env,car(cdr(lst)));
-
   offset = SYMBOL_GET_OFFSET(sym);
   op = select_inst(SYMBOL_GET_SIZE(sym));
   reg = select_reg(SYMBOL_GET_SIZE(sym));
 
   EMIT(gi,"%s #%s, %d(#rbp)",op,reg,offset);
 
-  return make_null();
+  val = make_null();
+  val = add_number(val,SYMBOL_GET_TYPE(sym));
+  val = add_number(val,SYMBOL_GET_OFFSET(sym));
+  val = add_number(val,SYMBOL_GET_SIZE(sym));
+
+  return val;
 }
 
 static list_t *gen_increment_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
+  list_t *val;
   char *op;
   string_t reg;
   list_t *rval;
@@ -3771,7 +3789,12 @@ static list_t *gen_increment_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t
   reg = select_reg(szr);
   EMIT(gi,"%s #%s, %d(#rbp)",op,reg,offset);
 
-  return make_null();
+  val = make_null();
+  val = add_number(val,SYMBOL_GET_TYPE(sym));
+  val = add_number(val,SYMBOL_GET_OFFSET(sym));
+  val = add_number(val,SYMBOL_GET_SIZE(sym));
+
+  return val;
 }
 
 static list_t *gen_cast(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
@@ -4754,7 +4777,6 @@ static string_t select_reg(integer_t size){
 #ifdef __DEBUG__
   printf("select_reg\n");
 #endif
-
   switch(size){
   case 1:
 	op = AL;
