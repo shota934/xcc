@@ -220,8 +220,6 @@ static list_t *gen_continue(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_increment(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_increment_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_cast(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
-static void gen_cast_int(gen_info_t *gi,type_t src_type);
-static void gen_cast_long(gen_info_t *gi,type_t src_type);
 static char *choose_increment_op(list_t *lst);
 
 static void gen_enum_elements(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,string_t enum_class);
@@ -302,6 +300,7 @@ static list_t *gen_builtin_va_end(gen_info_t *gi);
 static void gen_cast_char(gen_info_t *gi,type_t src_type);
 static void gen_cast_int(gen_info_t *gi,type_t src_type);
 static void gen_cast_long(gen_info_t *gi,type_t src_type);
+static void gen_cast_short(gen_info_t *gi,type_t src_type);
 
 gen_info_t *create_gen_info(){
 
@@ -3783,6 +3782,7 @@ static list_t *gen_cast(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   type_t src_type;
   type_t cast_type;
   list_type_t type;
+  int size;
 
 #ifdef __DEBUG__
   printf("gen_cast\n");
@@ -3815,18 +3815,29 @@ static list_t *gen_cast(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   switch(cast_type){
   case TYPE_INT:
     gen_cast_int(gi,src_type);
+	size = sizeof(int);
     break;
   case TYPE_LONG:
     gen_cast_long(gi,src_type);
+	size = sizeof(long);
     break;
+  case TYPE_SHORT:
+	gen_cast_short(gi,src_type);
+	size = sizeof(short);
+	break;
   case TYPE_CHAR:
 	gen_cast_char(gi,src_type);
+	size = sizeof(char);
 	break;
   case TYPE_POINTER:
+	size = SIZE;
 	break;
   default:
     break;
   }
+
+  val = add_number(val,cast_type);
+  val = add_number(val,size);
 
   return val;
 }
@@ -4098,9 +4109,10 @@ static void gen_cast_char(gen_info_t *gi,type_t src_type){
 
   switch(src_type){
   case TYPE_INT:
-	EMIT(gi,"movswq #ax,#rax");
+	EMIT(gi,"movslb #eax,#al");
 	break;
   case TYPE_SHORT:
+	EMIT(gi,"movswb #ax,#al");
 	break;
   default:
 	break;
@@ -4117,8 +4129,29 @@ static void gen_cast_int(gen_info_t *gi,type_t src_type){
 
   switch(src_type){
   case TYPE_SHORT:
-    EMIT(gi,"movswq #ax,#rax");
+    EMIT(gi,"movswl #ax,#eax");
     break;
+  case TYPE_LONG:
+	EMIT(gi,"movsql #rax,#eax");
+	break;
+  default:
+	break;
+  }
+
+  return;
+}
+
+static void gen_cast_short(gen_info_t *gi,type_t src_type){
+
+#ifdef __DEBUG__
+  printf("gen_cast_short\n");
+#endif
+
+  switch(src_type){
+  case TYPE_CHAR:
+	break;
+  case TYPE_INT:
+	break;
   case TYPE_LONG:
 	break;
   default:
@@ -4130,16 +4163,26 @@ static void gen_cast_int(gen_info_t *gi,type_t src_type){
 
 static void gen_cast_long(gen_info_t *gi,type_t src_type){
 
+  list_t *val;
+  integer_t size;
+
 #ifdef __DEBUG__
   printf("gen_cast_long\n");
 #endif
 
+  val = make_null();
   switch(src_type){
+  case TYPE_CHAR:
+	EMIT(gi,"movsbq #al,#rax");
+	size = sizeof(char);
+	break;
   case TYPE_SHORT:
     EMIT(gi,"movswq #ax,#rax");
+	size = sizeof(short);
     break;
   case TYPE_INT:
     EMIT(gi,"movslq #eax,#rax");
+	size = sizeof(int);
     break;
   case TYPE_LONG:
     break;
@@ -5261,7 +5304,6 @@ static int calc_load(gen_info_t *gi,env_t *env,string_t name){
 #endif
 
   obj = lookup_obj(env,name);
-  printf("name : %s",name);
   if(!obj){
 	exit(1);
   }

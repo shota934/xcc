@@ -98,5 +98,5 @@ try 0   test/test_variable_argment_pointer_case.c  "Passed test variable argment
 try 0   test/test_array_sort.c                     "Passed test array sort."
 try 0   test/test_check_char.c                     "Passed test check char."
 try 0   test/test_dynamic_array.c                  "Passed test dynamic array."
-
+try 0   test/test_ptr_str_operation.c              "Passed test pointer string operation."
 echo "Passed all Test cases."
