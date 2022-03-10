@@ -71,6 +71,8 @@ token_t keywords[] = {
   {TOKEN_DECREMENT_BY_ONE,"--"},
   {TOKEN_INCREMENT,"+="},
   {TOKEN_DECREMENT,"-="},
+  {TOKEN_MUL_INCREMENT,"*="},
+  {TOKEN_DIV_DECREMENT,"/="},  
   {TOKEN_STRUCT,"struct"},
   {TOKEN_ENUM,"enum"},
   {TOKEN_TYPEDEF,"typedef"},

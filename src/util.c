@@ -32,10 +32,6 @@ int hash(char *name){
   return sum % TABLE_SIZE;
 }
 
-bool_t is_decimaltype(type_t type){
-  return (TYPE_FLOAT == type) || (TYPE_DOUBLE == type);
-}
-
 bool_t is_inttype(list_t *lst){
 
   string_t type;
@@ -54,10 +50,6 @@ bool_t is_inttype(list_t *lst){
   return FALSE;
 }
 
-bool_t  is_function(type_t type){
-  return TYPE_FUNCTION == type;
-}
-
 type_t util_get_type(list_t *lst){
   return (*(type_t *)car(cdr(cdr(lst))));
 }
@@ -73,33 +65,6 @@ bool_t is_float(list_t  *lst){
   }
 
   return FALSE;
-}
-
-bool_t is_structtype(list_t *lst){
-
-  if(!IS_SYMBOL(lst)){
-    return FALSE;
-  }
-  
-  return STRCMP(STRUCT_ALLOC,car(lst));
-}
-
-bool_t is_compund_type(list_t *lst){
-
-  string_t symbol;
-  bool_t flag;
-  if(!IS_SYMBOL(lst)){
-    return FALSE;
-  }
-  
-  flag = FALSE;
-  symbol = car(lst);
-  if(STRCMP(STRUCT_DEF,symbol)
-     || STRCMP(STRUCT_DEF,symbol)){
-    flag = TRUE;
-  }
-  
-  return flag;
 }
 
 bool_t is_struct(symbol_t *sym){
@@ -135,16 +100,7 @@ bool_t is_struct_ref(list_t *lst){
     return FALSE;
   }
 
-  return STRCMP(car(lst),"->");
-}
-
-bool_t is_struct_decl(list_t *lst){
-
-  if(!IS_SYMBOL(lst)){
-    return FALSE;
-  }
-
-  return STRCMP(car(lst),STRUCT_DECL);
+  return STRCMP(car(lst),REF_MEMBER_ACCESS);
 }
 
 bool_t is_deref(list_t *lst){
@@ -158,10 +114,6 @@ bool_t is_deref(list_t *lst){
 
 bool_t is_nedd_cast(list_t *lst){
   return *(kind_t *)car(lst) == KIND_VARIABLE;
-}
-
-bool_t is_function_pointer(list_t *lst){
-  return (3 <= length_of_list(lst)) && (IS_LIST(tail(lst)));
 }
 
 bool_t is_func(object_t *obj){
@@ -202,44 +154,6 @@ bool_t is_name(list_t *lst){
   }
 }
 
-kind_t select_type(list_t *lst){
-
-  list_t *p;
-  int cnt;
-
-  p = lst;
-  while(IS_LIST(p)){
-    p = cdr(p);
-  }
-
-  cnt = 0;
-  while(IS_SYMBOL(p)){
-    if(!STRCMP(car(p),"*")){
-      break;
-    }
-    p = cdr(p);
-    cnt++;
-  }
-  
-  return 0 < cnt ? KIND_POINTER : KIND_VARIABLE;
-}
-
-int calc_align(int n,int m){
-  int rem = n % m;
-  return (rem == 0) ? n : n - rem + m;
-}
-
-bool_t is_extern(list_t *lst){
-
-  string_t name;
-  name = (string_t)car(lst);
-  if(STRCMP(EXTERN,name)){
-	return TRUE;
-  }
-
-  return FALSE;
-}
-
 int convert_hex_to_int(char *hex){
 
   int num;
@@ -260,36 +174,6 @@ int convert_hex_to_int(char *hex){
   return num;
 }
 
-bool_t is_var_len_args(list_t *lst){
-  
-  list_t *arg;
-  int flag;
-
-  #ifdef __DEBUG__
-  printf("is_var_len_args\n");
-  #endif
-
-  flag = FALSE;
-  arg = cdr(lst);
-  if(!IS_SYMBOL(arg)){
-    exit(1);
-  }
-
-  if(STRCMP((string_t)car(arg),"...")){
-    flag = TRUE;
-  }
-  
-  return flag;
-}
-
-list_t *get_def_type_lst(list_t *lst){
-  if(is_pointer(lst)){
-	return cdr(lst);
-  } else {
-	return lst;
-  }
-}
-
 bool_t is_var_args(list_t *lst){
 
   list_t *l;
@@ -301,26 +185,6 @@ bool_t is_var_args(list_t *lst){
 	return FALSE;
   }
 
-}
-
-bool_t is_compound_type(list_t *lst){
-
-  if(STRCMP(car(lst),STRUCT)
-	 || STRCMP(car(lst),UNION)){
-	return TRUE;
-  }
-
-  return FALSE;
-}
-
-bool_t is_compound_alloc_type(list_t *lst){
-
-  if(STRCMP(car(lst),STRUCT_ALLOC)
-	 || STRCMP(car(lst),UNION_ALLOC)){
-	return TRUE;
-  }
-
-  return FALSE;
 }
 
 bool_t is_qualifier(list_t *lst){
@@ -436,12 +300,8 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 	  return TYPE_DOUBLE;
 	} else if(STRCMP(name,FLOAT)){
 	  return TYPE_FLOAT;
-	} else if(STRCMP(name,STRUCT_ALLOC)){
-	  return TYPE_STRUCT;
 	} else if(STRCMP(name,STRUCT)){
 	  return TYPE_STRUCT;
-	} else if(STRCMP(name,UNION_ALLOC)){
-	  return TYPE_UNION;
 	} else if(STRCMP(name,UNION)){
 	  return TYPE_UNION;
 	} else if(STRCMP(name,ARRAY)){
@@ -456,7 +316,6 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 	  }
 
 	  if(!sym){
-		printf("name : [%s]\n",name);
 		exit(1);
 	  }
 
@@ -475,13 +334,10 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 		  return conv_type(env,cenv,SYMBOL_GET_TYPE_LST(sym),lst);
 		  break;
 		default:
-		  printf("name : %s\n",name);
-		  printf("TYPE : %d\n",SYMBOL_GET_SYM_TYPE(sym));
 		  exit(1);
 		  break;
 		}
 	  }
-	  printf("name : %s\n",name);
 	  exit(1);
 	}
   }

@@ -20,6 +20,7 @@ struct parser_t {
   lexer_t *lex;
   list_t *var_lst;
   set_t *set;
+  int cnt;
 };
 
 parser_t *parser_create();

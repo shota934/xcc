@@ -15,6 +15,7 @@
 #define __LINUX__
 //
 //#define __DEBUG__
+//#define __DEBUG__AST__
 //#define __CPP__DEBUG__
 //
 

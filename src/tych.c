@@ -456,8 +456,10 @@ static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst){
 	type = analyze_utype(lst,TYPE_DOUBLE);
   } else if(STRCMP(name,ARRAY)){
 	type = analyze_array(env,cdr(type_lst),lst);
-  } else if(STRCMP(name,STRUCT_ALLOC)){
+  } else if(STRCMP(name,STRUCT)){
 	type = analyze_utype(lst,TYPE_STRUCT);
+  } else if(STRCMP(name,UNION)){
+	type = analyze_utype(lst,TYPE_UNION);
   } else {
 	sym = lookup_obj(env,name);
 	if(sym){

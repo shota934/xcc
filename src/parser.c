@@ -21,14 +21,10 @@
 #define FUNC_CALL     "func-call"
 #define FUNC_DEF      "func-def"
 #define FUNC_DECL     "func-decl"
-#define STRUCT_DECL   "struc-decl"
-#define STRUCT_DEF    "struc-def"
-#define STRUCT_ALLOC  "struc-alloc"
+#define COMP_DEF      "comp-def"
 #define STRUCT_TYPE   "struct"
 #define NO_NAME       "no-name"
 #define UNION_TYPE    "union"
-#define UNION_DEF     "union-def"
-#define UNION_ALLOC   "union_alloc"
 #define ENUM_TYPE     "enum"
 #define DECL_VAR      "decl-var"
 #define TYPE_DEF      "typedef"
@@ -124,7 +120,6 @@
 #define IS_VOLATILE(t)    (TOKEN_GET_TYPE(t) == TOKEN_VOLATILE)
 #define IS_RESTRICT(t)    (TOKEN_GET_TYPE(t) == TOKEN_RESTRICT)
 #define IS_VAR_ARG_LIST(t) (TOKEN_GET_TYPE(t) ==  TOKEN_ARGMENT_LIST)
-#define IS_STRUCT_OR_UNION_DEF(l)  (length_of_list(l) == 2)
 #define IS_INLINE(t)      (TOKEN_GET_TYPE(t) == TOKEN_INLINE)
 
 #define IS_DEFINED(t)    (TOKEN_GET_TYPE(t) == TOKEN_DEFINED)
@@ -149,7 +144,7 @@ static list_t *parser_parse_enum(parser_t *parser);
 static list_t *parser_parse_enum_elements(parser_t *parser);
 static list_t *parser_parse_enum_element(parser_t *parser);
 static list_t *parser_parse_typedef_union_or_struct(parser_t *parser,list_t *lst,bool_t struct_type);
-static list_t *parser_parse_union_or_struct(parser_t *parser);
+static list_t *parser_parse_union_or_struct(parser_t *parser,bool_t struct_type);
 static list_t *parser_parse_def_struct(parser_t *parser);
 static list_t *parser_parse_mems(parser_t *parser,list_t *type_lst);
 static list_t *parser_parse_members(parser_t *parser);
@@ -235,6 +230,7 @@ static list_t *create_func(parser_t *parser,list_t *lst);
 static list_t *create_ret_lst(parser_t *parser,list_t *lst);
 static list_t *make_symbol(list_t *lst,token_t *t);
 static list_t *make_keyword(list_t *lst,string_t text);
+static string_t make_no_name(parser_t *parser);
 
 
 parser_t *parser_create(){
@@ -249,6 +245,7 @@ void parser_init(parser_t *parser){
 
   parser->var_lst = make_null();
   parser->set = set_create();
+  parser->cnt = 0;
 
   return;
 }
@@ -345,7 +342,7 @@ static list_t *parser_parse_enum(parser_t *parser){
   if(IS_LETTER(t)){
 	new_lst = make_symbol(make_null(),t);
   } else {
-	new_lst = make_keyword(make_null(),NO_NAME);
+	new_lst = make_keyword(make_null(),make_no_name(parser));
 	lexer_put_token(PARSER_GET_LEX(parser),t);
   }
   
@@ -408,24 +405,18 @@ static list_t *parser_parse_typedef_union_or_struct(parser_t *parser,list_t *lst
 #endif
   
   if(struct_type){
-    if(IS_LIST(cdr(lst))){
-      new_lst = make_keyword(lst,STRUCT_DEF);
-    } else {
-      new_lst = make_keyword(lst,STRUCT_TYPE);
-    }
+	new_lst = make_keyword(lst,STRUCT_TYPE);
   } else {
-    if(IS_LIST(cdr(lst))){
-      new_lst = make_keyword(lst,UNION_DEF);
-    } else {
-      new_lst = make_keyword(lst,UNION_TYPE);
-    }
+	new_lst = make_keyword(lst,UNION_TYPE);
   }
+
   return new_lst;
 }
 
-static list_t *parser_parse_union_or_struct(parser_t *parser){
+static list_t *parser_parse_union_or_struct(parser_t *parser,bool_t struct_type){
   
   list_t *new_lst;
+  list_t *l;
   token_t *t;
 
 #ifdef __DEBUG__
@@ -438,11 +429,18 @@ static list_t *parser_parse_union_or_struct(parser_t *parser){
     new_lst = make_symbol(new_lst,t);
     t = lexer_get_token(PARSER_GET_LEX(parser));
   } else {
-    new_lst = make_keyword(new_lst,NO_NAME);
+	new_lst = make_keyword(new_lst,make_no_name(parser));
   }
-  
+
   if(IS_LBRACE(t)){
-    new_lst = concat(new_lst,add_list(make_null(),parser_parse_members(parser)));
+	l = add_list(make_null(),parser_parse_members(parser));
+	if(struct_type){
+	  l = make_keyword(l,STRUCT_TYPE);
+	} else {
+	  l = make_keyword(l,UNION_TYPE);
+	}
+	l = add_list(make_null(),l);
+    new_lst = add_list(make_null(),concat(new_lst,l));
   } else {
     lexer_put_token(PARSER_GET_LEX(parser),t);
   }
@@ -567,33 +565,36 @@ static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef,int flag_o
 	new_lst = parser_parse_type(parser,flag_of_typedef,flag_of_type);
     new_lst = make_symbol(new_lst,t);
   } else if(IS_STRUCT(t)){
-    bool_t flag = TRUE;
-    new_lst = parser_parse_union_or_struct(parser);
-    if(flag_of_typedef){
-      new_lst = parser_parse_typedef_union_or_struct(parser,new_lst,flag);
-    } else {
-	  if(IS_LIST(cdr(new_lst))){
-		new_lst = make_keyword(new_lst,STRUCT_DEF);
-	  } else if(IS_NULL_LIST(cdr(new_lst))){
-		t = lexer_get_token(PARSER_GET_LEX(parser));
-		if(IS_SEMI_COLON(t)){
-		  new_lst = make_keyword(new_lst,STRUCT_DECL);
+	new_lst = parser_parse_union_or_struct(parser,TRUE);
+	if(flag_of_typedef){
+	  new_lst = parser_parse_typedef_union_or_struct(parser,new_lst,TRUE);
+	} else {
+	  t = lexer_get_token(PARSER_GET_LEX(parser));	
+	  if(IS_SEMI_COLON(t) || IS_LETTER(t)){
+		if(IS_LIST(new_lst)){
+		  new_lst = make_keyword(new_lst,COMP_DEF);
+		  new_lst = add_list(make_null(),new_lst);
 		} else {
-		  new_lst = make_keyword(new_lst,STRUCT_ALLOC);
+		  new_lst = make_keyword(new_lst,STRUCT_TYPE);
 		}
 		lexer_put_token(PARSER_GET_LEX(parser),t);
 	  }
-    }
+	}
   } else if (IS_UNION(t)){
-	new_lst = parser_parse_union_or_struct(parser);
+	new_lst = parser_parse_union_or_struct(parser,FALSE);
 	if(flag_of_typedef){
-	  new_lst = make_keyword(new_lst,UNION_DEF);
+	  new_lst = parser_parse_typedef_union_or_struct(parser,new_lst,FALSE);
 	} else {
-	  if(IS_LIST(cdr(new_lst))){
-		new_lst = make_keyword(new_lst,UNION_DEF);
-	  } else {
-		new_lst = make_keyword(new_lst,UNION_ALLOC);
-      }
+	  t = lexer_get_token(PARSER_GET_LEX(parser));
+	  if(IS_SEMI_COLON(t) || IS_LETTER(t)){
+		if(IS_LIST(new_lst)){
+		  new_lst = make_keyword(new_lst,COMP_DEF);
+		  new_lst = add_list(make_null(),new_lst);
+		} else {
+		  new_lst = make_keyword(new_lst,UNION_TYPE);
+		}
+		lexer_put_token(PARSER_GET_LEX(parser),t);
+	  }
 	}
   } else if(IS_ENUM(t)){
 	  new_lst = parser_parse_enum(parser);
@@ -603,7 +604,7 @@ static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef,int flag_o
 	  } else {
 		new_lst = make_keyword(new_lst,ENUM_TYPE);
 	  }
-  } else if(IS_LETTER(t) && set_find_obj(PARSER_GET_SET(parser),TOKEN_GET_STR(t))){
+ } else if(IS_LETTER(t) && set_find_obj(PARSER_GET_SET(parser),TOKEN_GET_STR(t))){
     new_lst = make_symbol(new_lst,t);
   } else if(IS_POINTER(t) && flag_of_type){
 	lexer_put_token(PARSER_GET_LEX(parser),t);
@@ -770,7 +771,7 @@ static list_t *parser_parse_funcargs(parser_t *parser,int cnt){
 	return parser_parse_attribute(parser,new_lst);
   } else if(IS_VAR_ARG_LIST(t) && 1 <= cnt){
 	new_lst = make_symbol(make_null(),t);
-	new_lst = add_symbol(new_lst,NO_NAME);
+	new_lst = add_symbol(new_lst,make_no_name(parser));
 	new_lst = add_list(make_null(),new_lst);
 	t = lexer_get_token(PARSER_GET_LEX(parser));
     if(IS_RPAREN(t)){
@@ -1325,7 +1326,13 @@ static list_t *parser_parse_factor(parser_t *parser){
 	if(!IS_LETTER(t)){
 	  ;
 	}
-	new_lst = add_list(make_null(),make_symbol(new_lst,t));
+	
+	l = parser_parse_sub(parser,make_symbol(make_null(),t));
+	if(IS_LIST(l)){
+	  l = car(l);
+	}
+	new_lst = concat(l,new_lst);
+	new_lst = add_list(make_null(),new_lst);
   } else if(IS_AND(t)){
     new_lst = make_symbol(new_lst,t);
     t = lexer_get_token(PARSER_GET_LEX(parser));
@@ -2088,7 +2095,7 @@ static int is_dclvar(list_t *lst){
 }
 
 static int is_dcl(list_t *lst){
-  return STRCMP(STRUCT_DEF,car(lst)) || STRCMP(UNION_DEF,car(lst));
+  return STRCMP(COMP_DEF,car(lst));
 }
 
 static int is_typedef_name(parser_t *parser,token_t *token){
@@ -2162,8 +2169,7 @@ static bool_t is_compound_def_type(list_t *lst){
 
   string_t name;
   name = (string_t)car(lst);
-  if(STRCMP(STRUCT_DEF,name) ||
-	 STRCMP(UNION_DEF,name)){
+  if(STRCMP(COMP_DEF,name)){
 	return TRUE;
   }
 
@@ -2305,4 +2311,20 @@ static list_t *make_keyword(list_t *lst,string_t text){
   new_lst = add_symbol(lst,text);
 
   return new_lst;
+}
+
+static string_t make_no_name(parser_t *parser){
+
+#ifdef __DEBUG__
+  printf("make_no_name\n");
+#endif
+  
+  string_t str;
+  char buf[256];
+  sprintf(buf,"%s-%d",NO_NAME,parser->cnt);
+  parser->cnt++;
+  str = mem(strlen(buf) + 1);
+  strcpy(str,buf);
+  
+  return str;
 }
