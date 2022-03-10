@@ -4588,8 +4588,6 @@ static integer_t gen_union_members(gen_info_t *gi,env_t *env,env_t *cenv,list_t 
 	  size = SYMBOL_GET_SIZE(sym);
 	}
 
-	printf("size : %d\n",SYMBOL_GET_SIZE(sym));
-
 	return size;
   }
 }
@@ -4748,11 +4746,11 @@ static list_t *eval_type(gen_info_t *gi,env_t  *env,env_t *cenv,list_t *lst){
 	  l = add_symbol(l,car(car(cdr(lst))));
 	  return l;
 	} else if(STRCMP(car(lst),STRUCT)){
-	  return cdr(lst);
+	  return lst;
 	} else if(STRCMP(car(lst),ENUM)){
 	  return cdr(lst);
 	} else if(STRCMP(car(lst),UNION)){
-	  return cdr(lst);
+	  return lst;
 	} else if(STRCMP(car(lst),UNSIGNED)){
 	  return lst;
 	} else if(STRCMP(car(lst),SIGNED)){

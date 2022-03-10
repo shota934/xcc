@@ -577,8 +577,10 @@ static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef,int flag_o
 		} else {
 		  new_lst = make_keyword(new_lst,STRUCT_TYPE);
 		}
-		lexer_put_token(PARSER_GET_LEX(parser),t);
+	  } else {
+		new_lst = make_keyword(new_lst,STRUCT_TYPE);
 	  }
+	  lexer_put_token(PARSER_GET_LEX(parser),t);
 	}
   } else if (IS_UNION(t)){
 	new_lst = parser_parse_union_or_struct(parser,FALSE);
@@ -593,8 +595,10 @@ static list_t *parser_parse_type(parser_t *parser,int flag_of_typedef,int flag_o
 		} else {
 		  new_lst = make_keyword(new_lst,UNION_TYPE);
 		}
-		lexer_put_token(PARSER_GET_LEX(parser),t);
+	  } else {
+		new_lst = make_keyword(new_lst,UNION_TYPE);
 	  }
+	  lexer_put_token(PARSER_GET_LEX(parser),t);
 	}
   } else if(IS_ENUM(t)){
 	  new_lst = parser_parse_enum(parser);
