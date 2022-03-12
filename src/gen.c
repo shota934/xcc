@@ -5145,9 +5145,6 @@ static list_t *gen_typedef(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   val = make_null();
   name = car(lst);
-  if(STRCMP(name,"__va_elem")){
-	printf("aaaa\n");
-  }
   sym = create_symbol(eval_type(gi,env,cenv,cdr(lst)));
   SYMBOL_SET_TYPE(sym,TYPE_TYPE);
 
