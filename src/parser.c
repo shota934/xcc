@@ -403,11 +403,16 @@ static list_t *parser_parse_typedef_union_or_struct(parser_t *parser,list_t *lst
 #ifdef __DEBUG__
   printf("parser_parse_typedef_union_or_struct\n");
 #endif
-  
-  if(struct_type){
-	new_lst = make_keyword(lst,STRUCT_TYPE);
+
+  if(IS_LIST(lst)){
+	new_lst = make_keyword(lst,COMP_DEF);
+	new_lst = add_list(make_null(),new_lst);
   } else {
-	new_lst = make_keyword(lst,UNION_TYPE);
+	if(struct_type){
+	  new_lst = make_keyword(lst,STRUCT_TYPE);
+	} else {
+	  new_lst = make_keyword(lst,UNION_TYPE);
+	}
   }
 
   return new_lst;
