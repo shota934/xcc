@@ -482,6 +482,9 @@ static list_t *parser_parse_member(parser_t *parser){
   quali_type_lst = parser_parse_type_qualifier_list(parser);
   type_lst = parser_parse_type(parser,FALSE,FALSE);
   new_lst = parser_parse_dcl(parser);
+  if(IS_NULL_LIST(new_lst)){
+	new_lst = add_symbol(make_null(),make_no_name(parser));
+  }
   new_lst = parser_parse_func(parser,type_lst,new_lst,quali_type_lst);
 
   t = lexer_get_token(PARSER_GET_LEX(parser));

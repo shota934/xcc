@@ -37,6 +37,7 @@ char *FLOAT_REGS[] = {"xmm0","xmm1","xmm2","xmm3","xmm4","xmm5","xmm6","xmm7"};
 #define SWITCH_NEXT "next"
 #define SWITCH_TEST "test"
 
+#define NO_NAME       "no-name"
 #define LOOP_CONTINUE "next_continue"
 #define NO_LINE -1
 
@@ -230,6 +231,9 @@ static list_t *gen_enum_value(gen_info_t *gi,env_t *env,list_t *lst);
 static list_t *gen_struct_ref(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_struct_decl(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static compound_def_t *gen_struct_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
+static int gen_internal_comp_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,int offset,compound_def_t *com);
+static int gen_internal_union_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,compound_def_t *com);
+static int gen_internal_struct_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,int offset,compound_def_t *com);
 static list_t *gen_comp_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static compound_def_t *gen_compd_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_enum(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -4404,6 +4408,54 @@ static compound_def_t *gen_struct_def(gen_info_t *gi,env_t *env,env_t *cenv,list
   return com;
 }
 
+static int gen_internal_comp_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,int offset,compound_def_t *com){
+
+  list_t *l;
+  string_t name;
+  int size;
+
+#ifdef __DEBUG__
+  printf("gen_internal_struct_def\n");
+#endif
+
+  l = car(cdr(car(cdr(car(cdr(lst))))));
+  name = car(l);
+  if(STRCMP(STRUCT,name)){
+	size = gen_internal_struct_def(gi,env,cenv,car(cdr(l)),offset,com);
+  } else if(STRCMP(UNION,name)){
+	size = gen_internal_union_def(gi,env,cenv,car(cdr(l)),com);
+  } else {
+	printf("name : %s\n",name);
+	exit(1);
+  }
+  
+  return size;
+}
+
+static int gen_internal_struct_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,int offset,compound_def_t *com){
+  
+  int size;
+#ifdef __DEBUG__
+  printf("gen_internal_struct_def\n");
+#endif
+
+  size = gen_members(gi,env,cenv,lst,offset,com);
+
+  return size;
+}
+
+static int gen_internal_union_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,compound_def_t *com){
+
+  int size;
+#ifdef __DBEUG__
+  printf("gen_internal_union_def\n");
+#endif
+
+  size = gen_union_members(gi,env,cenv,lst,com);
+
+  return size;
+}
+
 static list_t *gen_comp_def(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   list_t *val;
@@ -4549,6 +4601,9 @@ static integer_t gen_members(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst, 
   string_t name;
   int size;
   symbol_t *sym;
+  char *ret;
+  list_t *l;
+  compound_def_t *com1;
 
 #ifdef __DEBUG__
   printf("gen_members\n");
@@ -4557,11 +4612,18 @@ static integer_t gen_members(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst, 
   if(IS_NULL_LIST(lst)){
 	return offset;
   } else {
-	sym = factory_member(gi,env,cenv,cdr(car(lst)),offset);
 	name = car(car(lst));
-	insert_obj(env,name,sym);
-	size = gen_members(gi,env,cenv,cdr(lst),SYMBOL_GET_OFFSET(sym) + SYMBOL_GET_SIZE(sym),com);
-	com->members = add_symbol(com->members,name);
+	ret = strstr(name,NO_NAME);
+	if(ret){
+	  size = gen_internal_comp_def(gi,env,cenv,car(lst),offset,com);
+	  size = gen_members(gi,env,cenv,cdr(lst),size ,com);
+	  com->members = concat(com->members,com1->members);
+	} else {
+	  sym = factory_member(gi,env,cenv,cdr(car(lst)),offset);
+	  insert_obj(env,name,sym);
+	  size = gen_members(gi,env,cenv,cdr(lst),SYMBOL_GET_OFFSET(sym) + SYMBOL_GET_SIZE(sym),com);
+	  com->members = add_symbol(com->members,name);
+	}
 	return size;
   }
 }
@@ -4924,6 +4986,7 @@ static integer_t select_compound_def(gen_info_t *gi,env_t *env,env_t *cenv,list_
 #endif
 
   name = car(lst);
+  
   com = gen_compd_def(gi,env,cenv,car(cdr(lst)));
   insert_obj(cenv,name,com);
 
