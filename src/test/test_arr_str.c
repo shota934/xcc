@@ -11,6 +11,6 @@ int main(){
   } else {
 	ret = 1;
   }
-  
+
   return ret;
 }
