@@ -65,6 +65,12 @@
 #define ASSERT(e)
 #endif
 
+#ifdef __DEBUG__AST__
+#define DUMP_AST(a) dump_ast(a)
+#else
+#define DUMP_AST(a)
+#endif
+
 #define BUILT_IN_VA_START  "__builtin_va_start"
 #define BUILT_IN_VA_ARG    "__builtin_va_arg"
 #define BUILT_IN_VA_END    "__builtin_va_end"
