@@ -712,8 +712,11 @@ static list_t *parser_parse_dclation(parser_t *parser){
 	new_lst = make_keyword(new_lst,DECL_VAR);
 	PARSER_SET_VAR_LST(parser,concat(PARSER_GET_VAR_LST(parser),add_list(make_null(),add_list(make_null(),new_lst))));
 	new_lst = concat(add_list(make_null(),new_lst),parser_parse_dcls(parser,type_lst));
-  } else if(IS_LPAREN(t) || IS_RPAREN(t)){
+  } else if(IS_ATTRIBUTE(t)){
 	lexer_put_token(PARSER_GET_LEX(parser),t);
+	new_lst = add_list(make_null(),parser_parse_attribute(parser,new_lst));
+  } else if(IS_LPAREN(t) || IS_RPAREN(t)){
+	lexer_put_token(PARSER_GET_LEX(parser),t);	
   } else {
 	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"expected ';' before '%s' ",TOKEN_GET_STR(t));
 	exit(1);
@@ -832,7 +835,7 @@ static list_t *parser_parse_attribute(parser_t *parser,list_t *lst){
 #ifdef __DEBUG__
   printf("parser_parse_attribute\n");
 #endif
-
+  //printf("parser_parse_attribute\n");  
   flag = FALSE;
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_LBRACE(t)){

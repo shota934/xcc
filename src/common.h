@@ -15,7 +15,6 @@
 #define __LINUX__
 //
 //#define __DEBUG__
-//#define __DEBUG__AST__
 //#define __CPP__DEBUG__
 //
 
@@ -63,12 +62,6 @@
 #else
 #define DUMP_AST(a)
 #define ASSERT(e)
-#endif
-
-#ifdef __DEBUG__AST__
-#define DUMP_AST(a) dump_ast(a)
-#else
-#define DUMP_AST(a)
 #endif
 
 #define BUILT_IN_VA_START  "__builtin_va_start"

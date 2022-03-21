@@ -458,11 +458,20 @@ static list_t *get_local_vars(list_t *lst){
 
 static bool_t has_args(list_t *lst){
 
+  string_t name;
+  list_t *l;
+
   if(IS_NULL_LIST(lst)){
 	return FALSE;
   } else {
-	return TRUE;
+	l = car(lst);
+	name = car(l);
+	if((length_of_list(l) == 1) && STRCMP(name,VOID)){
+	  return FALSE;
+	}
   }
+
+  return TRUE;
 }
 
 static int calc_arg_offset(gen_info_t *gi, int size){
@@ -5329,7 +5338,6 @@ static int calc_symbol(gen_info_t *gi,list_t *lst,env_t *env,env_t *cenv){
 	  return select_size(gi,env,cenv,make_null(),lst,FALSE);
 	}
   }
-
   exit(1);
 }
 
