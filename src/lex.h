@@ -87,6 +87,8 @@ enum token_type_t {
   TOKEN_NEWLINE,
   TOKEN_GOTO,
   TOKEN_SPACE,
+  TOKEN_VTAB,
+  TOKEN_TAB,
   TOKEN_ARGMENT_LIST,
   TOKEN_DEFINED,
   TOKEN_ERROR,
@@ -145,7 +147,8 @@ lexer_t *create_lexer();
 void lexer_init(lexer_t *l);
 void lexer_set_src(lexer_t *l,char *src);
 void lexer_set_eoc(lexer_t *l,char ch);
-token_t *scan(lexer_t *l);
+token_t *scan(lexer_t *lex);
+token_t *scan_by_no_skip(lexer_t *lex);
 void put_token(lexer_t *l,token_t *t);
 token_t *lexer_get_token(lexer_t *l);
 void lexer_put_token(lexer_t *l,token_t *t);

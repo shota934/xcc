@@ -13,6 +13,7 @@
 
 #define SPACE        ' '
 #define TAB          '\t'
+#define VTAB         '\v'
 #define NEW_LINE     '\n'
 #define NULL_CHAR    '\0'
 #define QUOTE        '\''
@@ -212,6 +213,52 @@ token_t *scan(lexer_t *lex){
       if(ch == NEW_LINE){
 		t = create_token(TOKEN_NEWLINE,"\n",lex->line_no,LEXER_GET_NAME(lex));
 		lex->line_no++;
+      } else if(ch == 0x00){
+		t = create_token(TOKEN_EOT,NULL,0,LEXER_GET_NAME(lex));
+		lex->t = t;
+      } else if(IS_QUOTE(ch)){
+		t = scan_char(lex);
+      } else if(IS_DOUBLE_QUOTE(ch)){
+		t = scan_string(lex);
+      } else if(isdigit(ch)){
+		t = scan_number(lex,ch);
+      } else if(isalpha(ch) || UNDER_BAR == ch){
+		t = scan_letter(lex);
+      } else {
+		t = scan_operator(lex,ch);
+    }
+      lex->str = NULL;
+    }
+  }
+
+  return t;
+}
+
+token_t *scan_by_no_skip(lexer_t *lex){
+
+  token_t *t;
+  char *text;
+  char ch;
+
+  if(lex->t){
+    t = lex->t;
+    lex->t = NULL;
+  } else {
+	ch = LEXER_GET_NEXT_CHAR(lex);
+    if(is_comment(lex,ch)){
+      LEXER_GET_NAME(lex);
+      return create_token(TOKEN_SPACE,"",lex->line_no,LEXER_GET_NAME(lex));
+    } else {
+      lex->str = lex->cur - 1;
+      if(ch == NEW_LINE){
+		t = create_token(TOKEN_NEWLINE,"\n",lex->line_no,LEXER_GET_NAME(lex));
+		lex->line_no++;
+	  } else if(ch == SPACE){
+		t = create_token(TOKEN_SPACE," ",lex->line_no,LEXER_GET_NAME(lex));
+	  } else if(ch == TAB){
+		t = create_token(TOKEN_TAB,"\t",lex->line_no,LEXER_GET_NAME(lex));
+	  } else if(ch == VTAB){
+		t = create_token(TOKEN_VTAB,"\v",lex->line_no,LEXER_GET_NAME(lex));
       } else if(ch == 0x00){
 		t = create_token(TOKEN_EOT,NULL,0,LEXER_GET_NAME(lex));
 		lex->t = t;
@@ -504,9 +551,9 @@ static int is_comment(lexer_t *lex,char ch){
 }
 
 static int is_skip(char ch){
-  
-  if((ch == SPACE) || (ch == TAB)){
-    return TRUE;
+
+  if((ch == SPACE) || (ch == TAB) || (ch == VTAB)){
+	return TRUE;
   }
 
   return FALSE;

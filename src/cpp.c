@@ -18,6 +18,8 @@
 #include "dump.h"
 #include "inst.inc"
 
+#define IS_TAB(t)      (TOKEN_GET_TYPE(t) == TOKEN_TAB)
+#define IS_VTAB(t)     (TOKEN_GET_TYPE(t) == TOKEN_VTAB)
 #define IS_NEWLINE(t)  (TOKEN_GET_TYPE(t) == TOKEN_NEWLINE)
 #define IS_NUMBER(t)   (TOKEN_GET_TYPE(t) == TOKEN_NUMBER)
 #define IS_FLOAT(t)    (TOKEN_GET_TYPE(t) == TOKEN_FLOAT)
@@ -406,27 +408,32 @@ static void read_define(compile_info_t *com,lexer_t *lexer){
   token_t *name;
   token_t *t;
   name = scan(lexer);
+
   if(!IS_LETTER(name)){
-    error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Definition error [%s]",TOKEN_GET_STR(t));
+    error(TOKEN_GET_LINE_NO(name),TOKEN_GET_NAME(name),"Definition error [%s]",TOKEN_GET_STR(name));
   }
 
-  t = scan(lexer);
-  if(IS_LPAREN(t)){
-    token_t *lparen;
-    lparen = t;
-    t = scan(lexer);
-    if(IS_LETTER(t)){
-      put_token(lexer,t);
-      read_define_func(com,lexer,name);
-    } else {
-      list_t *lst = make_null();
-      lst = concat(lst,cons(make_null(),lparen));
-      lst = concat(lst,cons(make_null(),t));
-      read_define_macro_obj(com,lexer,name,lst);
-    }
+  t = scan_by_no_skip(lexer);
+  if(IS_SPACE(t) || IS_TAB(t) || IS_VTAB(t)){
+	read_define_macro_obj(com,lexer,name,make_null());
   } else {
-    put_token(lexer,t);
-    read_define_macro_obj(com,lexer,name,make_null());
+	if(IS_LPAREN(t)){
+	  token_t *lparen;
+	  lparen = t;
+	  t = scan(lexer);
+	  if(IS_LETTER(t)){
+		put_token(lexer,t);
+		read_define_func(com,lexer,name);
+	  } else {
+		list_t *lst = make_null();
+		lst = concat(lst,cons(make_null(),lparen));
+		lst = concat(lst,cons(make_null(),t));
+		read_define_macro_obj(com,lexer,name,lst);
+	  }
+	} else {
+	  put_token(lexer,t);
+	  read_define_macro_obj(com,lexer,name,make_null());
+	}
   }
   
   return;
@@ -1150,9 +1157,13 @@ static void dump_macro_func_like_obj(macro_t *macro){
   printf("dump_macro_func_like_obj\n");
 #endif
 
+  printf("( ");
   dump_lst(MACRO_GET_PARAM(macro));
+  printf(") ");
+  printf("{ ");
   dump_lst(MACRO_GET_BODY(macro));
-  
+  printf(" }");
+
   return;
 }
 
@@ -1166,9 +1177,9 @@ static void dump_token_sequence(list_t  *lst){
 	if(TOKEN_EOT == TOKEN_GET_TYPE(t)){
 	  continue;
 	}
-    printf(" %s ",TOKEN_GET_STR(t));
+	printf(" %s ",TOKEN_GET_STR(t));
 #ifdef __CPP__DEBUG__
-	printf("\n%s\n",TOKEN_GET_NAME(t));
+	printf("\n[%s]\n",TOKEN_GET_NAME(t));
 #endif
   }
 }
