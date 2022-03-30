@@ -1111,7 +1111,7 @@ static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *ls
 
   sym = create_symbol(eval_type(gi,env,cenv,lst,FALSE));
   l = lookup_obj(env,name);
-  if(l){
+  if((l) && (scope != ARGMENT)){
 	size = *(integer_t*)car(l);
   } else {
 	size = select_size(gi,env,cenv,make_null(),lst,FALSE);
