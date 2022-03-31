@@ -1520,6 +1520,9 @@ static list_t *parser_parse_while(parser_t *parser){
   }
   
   cond = parser_parse_stmt_expr(parser);
+  if(IS_NOT_LIST(cond)){
+	cond = add_list(make_null(),cond);
+  }
   
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_RPAREN(t)){
