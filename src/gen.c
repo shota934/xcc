@@ -1517,7 +1517,6 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   fop = FALSE;
   args = car(cdr(lst));
   cl = categorize(env,cenv,args);
-
   // Parameter Passing
   osa = gen_call_args(gi,env,cenv,cl);
   gi->int_regs = 0;
@@ -1701,7 +1700,7 @@ static list_t *gen_call_int_args(gen_info_t *gi,env_t *env,env_t *cenv,list_t *l
   int size;
   int reg;
 
-#ifdef __DEBUG_
+#ifdef __DEBUG__
   printf("gen_call_int_args\n");
 #endif
 
@@ -1849,6 +1848,7 @@ static list_t *gen_call_rest_args(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
 	  case TYPE_STRING:
 	  case TYPE_ARRAY:
 	  case TYPE_ENUM:
+	  case TYPE_FUNC:
 		EMIT(gi,"%s %d(#rbp),#%s",select_inst(SYMBOL_GET_SIZE(sym_mem)),
 			 offset,select_reg(size));
 		if(size < SIZE){
@@ -2636,6 +2636,7 @@ static list_t *categorize(env_t *env,env_t *cenv,list_t *lst){
 	case TYPE_STRING:
 	case TYPE_ARRAY:
 	case TYPE_ENUM:
+	case TYPE_FUNC:
 	  int_lst = concat(int_lst,add_list(make_null(),car(p)));
 	  break;
 	case TYPE_FLOAT:
@@ -2908,9 +2909,10 @@ static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst
 #endif
 
   val = make_null();
-  if(is_func(obj) && is_address(cdr(lst))){
+  if(is_func(obj)){
 	EMIT(gi,"leaq %s(#rip),#rax",(string_t)car(lst));
 	val = add_symbol(val,FUNC);
+	val = add_number(val,FUNC_POINTER_SIZE);
   }
 
   return val;

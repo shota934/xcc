@@ -159,6 +159,9 @@ static type_t check_op_type_sym(env_t *env,env_t *cenv,list_t *lst){
 	case TYPE_ENUMULATE:
 	  return check_type_enum();
 	  break;
+	case TYPE_FUNCTION:
+	  return TYPE_FUNC;
+	  break;
 	}
   }
 

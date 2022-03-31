@@ -319,9 +319,12 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 		exit(1);
 	  }
 
-	  if(sym->obj.type == TYPE_COMPOUND){
+	  switch(sym->obj.type){
+	  case TYPE_COMPOUND:
 		return conv_compound_type((compound_def_t *)sym);
-	  } else {
+	  case TYPE_FUNCTION:
+		return TYPE_FUNC;
+	  default:
 		switch(SYMBOL_GET_SYM_TYPE(sym)){
 		case TYPE_ENUM:
 		  return SYMBOL_GET_SYM_TYPE(sym);
