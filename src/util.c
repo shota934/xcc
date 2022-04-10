@@ -154,6 +154,24 @@ bool_t is_name(list_t *lst){
   }
 }
 
+bool_t is_integer_type(env_t *env,list_t *lst){
+
+  symbol_t *sym;
+  string_t name;
+  
+  if(is_inttype(lst) || is_pointer(lst) || is_array(lst)){
+	return TRUE;
+  }
+
+  name = car(lst);
+  sym = lookup_obj(env,name);
+  if(!sym){
+	return FALSE;
+  }
+
+  return is_integer_type(env,SYMBOL_GET_TYPE_LST(sym));
+}
+
 int convert_hex_to_int(char *hex){
 
   int num;
@@ -406,6 +424,21 @@ bool_t is_integertype(list_t *lst){
 	return TRUE;
   }
 
+  return FALSE;
+}
+
+bool_t is_global_var(list_t *lst){
+
+  string_t name;
+  if(!IS_SYMBOL(lst)){
+	return FALSE;
+  }
+  
+  name = car(lst);
+  if(STRCMP(name,GLOBAL_VAR)){
+	return TRUE;
+  }
+  
   return FALSE;
 }
 

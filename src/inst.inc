@@ -87,4 +87,5 @@
 #define ASM             "asm"
 #define BLOCK           "block"
 #define UNDEFINED_SIZE "undefined-size"
-#define BUILTIN_FUNC "builtin-func"
+#define BUILTIN_FUNC   "builtin-func"
+#define GLOBAL_VAR     "global-var"

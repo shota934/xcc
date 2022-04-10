@@ -2673,7 +2673,7 @@ static list_t *categorize_type(env_t *env,list_t *lst){
   other_lst = make_null();
   for(p = lst; IS_NOT_NULL_LIST(p); p = cdr(p)){
 	pp = cdr(car(p));
-	if(is_inttype(pp) || is_pointer(pp) || is_array(pp)){
+	if(is_integer_type(env,pp)){
 	  int_lst = concat(int_lst,add_list(make_null(),car(p)));
 	} else if(is_float(pp)){
 	  float_lst = concat(float_lst,add_list(make_null(),car(p)));

@@ -18,6 +18,17 @@
 #include "dump.h"
 #include "inst.inc"
 
+#define CPP_INCLUDE "include"
+#define CPP_DEFINE  "define"
+#define CPP_IFDEF   "ifdef"
+#define CPP_IFNDEF   "ifndef"
+#define CPP_IF      "if"
+#define CPP_UNDEF   "undef"
+#define CPP_ERROR   "error"
+#define CPP_ELIF    "elif"
+#define CPP_ENDIF   "endif"
+#define CPP_UNDEF   "undef"
+
 #define IS_TAB(t)      (TOKEN_GET_TYPE(t) == TOKEN_TAB)
 #define IS_VTAB(t)     (TOKEN_GET_TYPE(t) == TOKEN_VTAB)
 #define IS_NEWLINE(t)  (TOKEN_GET_TYPE(t) == TOKEN_NEWLINE)
@@ -25,8 +36,6 @@
 #define IS_FLOAT(t)    (TOKEN_GET_TYPE(t) == TOKEN_FLOAT)
 #define IS_COMMA(t)    (TOKEN_GET_TYPE(t) == TOKEN_COMMA)
 #define IS_INCLUDE(t)     (TOKEN_GET_TYPE(t) == TOKEN_INCLUDE)
-#define IS_DEFINE(t)      (TOKEN_GET_TYPE(t) == TOKEN_DEFINE)
-#define IS_IFDEF(t)       (TOKEN_GET_TYPE(t) == TOKEN_IFDEF)
 #define IS_IFNDEF(t)      (TOKEN_GET_TYPE(t) == TOKEN_IFNDEF)
 #define IS_SHAPE(t)       (TOKEN_GET_TYPE(t) == TOKEN_SHAPE)
 #define IS_LETTER(t)      (TOKEN_GET_TYPE(t) == TOKEN_LETTER)
@@ -43,7 +52,6 @@
 #define IS_SPACE(t)       (TOKEN_GET_TYPE(t) == TOKEN_SPACE)
 #define IS_ERROR(t)       (TOKEN_GET_TYPE(t) == TOKEN_ERROR)
 #define IS_BACKSLASH(t)   (TOKEN_GET_TYPE(t) == TOKEN_BACK_SLASH)
-
 #define IS_MACRO_OBJ(m)  m->type == MACRO_OBJECT
 
 static void read_include(compile_info_t *com,lexer_t *lexer);
@@ -268,6 +276,7 @@ static void cprereaddefs(compile_info_t *com,lexer_t *lexer,bool_t flag,bool_t p
 static void cprereaddef(compile_info_t *com,lexer_t *lexer,bool_t flag,bool_t predic){
   
   token_t *t;
+  string_t str;
 
 #ifdef __DEBUG__
   printf("cprereaddef\n");
@@ -285,19 +294,20 @@ static void cprereaddef(compile_info_t *com,lexer_t *lexer,bool_t flag,bool_t pr
   }
   
   t = scan(lexer);
-  if(IS_INCLUDE(t)){
+  str = TOKEN_GET_STR(t);
+  if(STRCMP(str,CPP_INCLUDE)){
     read_include(com,lexer);
-  } else if(IS_DEFINE(t)){
+  } else if(STRCMP(str,CPP_DEFINE)){
     read_define(com,lexer);
-  } else if(IS_IFDEF(t)){
+  } else if(STRCMP(str,CPP_IFDEF)){
     read_ifdef(com,lexer);
-  } else if(IS_IFNDEF(t)){
+  } else if(STRCMP(str,CPP_IFNDEF)){
     read_ifndef(com,lexer);
-  } else if(IS_IF(t)){
+  } else if(STRCMP(str,CPP_IF)){
     read_if(com,lexer);
-  } else if(IS_UNDEF(t)){
+  } else if(STRCMP(str,CPP_UNDEF)){
     read_undef(com,lexer);
-  } else if(IS_ERROR(t)){
+  } else if(STRCMP(str,CPP_ERROR)){
     read_error(com,lexer);
   } else {
     if(flag){
@@ -1233,6 +1243,7 @@ static void skip_until_newline(lexer_t *lexer){
   token_t *pre_token;
   bool_t flag;
   bool_t cpp_flag;
+  string_t str;
   
 #ifdef __DEBUG__
   printf("skip_until_newline\n");
@@ -1242,8 +1253,11 @@ static void skip_until_newline(lexer_t *lexer){
   cpp_flag = FALSE;
   pre_token = NULL;
   while(TRUE){
-    t = scan(lexer);
-    if(IS_IF(t) || IS_IFDEF(t) || IS_IFNDEF(t)){
+	t = scan(lexer);
+	str = TOKEN_GET_STR(t);
+	if(STRCMP(CPP_IF,str) ||
+	   STRCMP(CPP_IFDEF,str) ||
+	   STRCMP(CPP_IFNDEF,str)){
       if(flag){
 		put_token(lexer,t);
 		skip_until_newline(lexer);

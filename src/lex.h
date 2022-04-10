@@ -76,8 +76,6 @@ enum token_type_t {
   TOKEN_STATIC,
   TOKEN_EXTERN,
   TOKEN_CONST,
-  TOKEN_IFDEF,
-  TOKEN_IFNDEF,
   TOKEN_ELIF,
   TOKEN_ENDIF,
   TOKEN_UNDEF,
@@ -91,7 +89,6 @@ enum token_type_t {
   TOKEN_TAB,
   TOKEN_ARGMENT_LIST,
   TOKEN_DEFINED,
-  TOKEN_ERROR,
   TOKEN_SHORT,
   TOKEN_LONG,
   TOKEN_TILDE,
@@ -114,7 +111,7 @@ enum token_type_t {
 
 struct token_t {
   token_type_t type;
-  char *str;
+  string_t str;
   int line_no;
   string_t name;
 };
