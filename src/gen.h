@@ -13,6 +13,7 @@
 typedef struct gen_info_t gen_info_t;
 #define GEN_INF_SET_FILE(gi,f)   gi->output_file = f
 #define GEN_INFO_SET_SRC(gi,s)   gi->src = s
+#define GEN_INFO_GET_SRC(gi)     gi->src
 #define GEN_INFO_SET_SET(gi,s)   gi->set = s
 #define GEN_INFO_GET_SET(gi)   gi->set
 

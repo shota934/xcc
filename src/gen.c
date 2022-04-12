@@ -267,6 +267,8 @@ static string_t select_op_fp(char op);
 static string_t select_movs_inst(integer_t size);
 static bool_t is_need_padding(gen_info_t *gi);
 static bool_t is_unary(list_t *lst);
+static bool_t is_srcfile(gen_info_t *gi,list_t *lst);
+static bool_t is_compound_proto_type(gen_info_t *gi,list_t *lst);
 static func_t *make_func(list_t *lst,scope_t scope);
 static list_t *gen_typedef(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static integer_t get_offset(list_t *lst);
@@ -401,7 +403,7 @@ list_t *gen(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	} else if(IS_TYPEDEF(type)){
 	  v = gen_typedef(gi,env,cenv,cdr(car(l)));
 	} else if(STRCMP(DECL_VAR,type)){
-	  v = gen_global_var(gi,env,cenv,cdr(l));
+	  v = gen_global_var(gi,env,cenv,cdr(car(l)));
 	} else {
 	  printf("<--------------\n");
 	  DUMP_AST(l);
@@ -693,12 +695,30 @@ static list_t *gen_funcdef(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
 static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
+  string_t name;
+  symbol_t *sym;
   list_t *val;
 #ifdef __DEBUG__
   printf("gen_global_var\n");
 #endif
 
-  val = make_null();
+  if(is_compound_proto_type(gi,lst)){
+	val = add_symbol(make_null(),name);
+  } else {
+	name = car(lst);
+	if(STRCMP(EXTERN,name)){
+	  name = car(cdr(lst));
+	  sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),GLOBAL,name);
+	  insert_obj(env,name,sym);
+	  val = add_symbol(make_null(),name);
+	} else {
+	  name = car(lst);
+	  sym = factory_symbol(gi,env,cenv,cdr(lst),GLOBAL,name);
+	  EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
+	  insert_obj(env,name,sym);
+	  val = add_symbol(make_null(),name);
+	}
+  }
 
   return val;
 }
@@ -1293,6 +1313,7 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   symbol_t *sym;
   string_t op;
   string_t reg;
+  integer_t size;
 
 #ifdef __DEBUG__
   printf("gen_assign\n");
@@ -1313,6 +1334,12 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   gen_info_set_lhs_type(gi,make_null());
   if(IS_NULL_LIST(r)){
 	val = r;
+  } else if(is_global_var(car(l))){
+	size = *(integer_t *)car(cdr(cdr(car(l))));
+	op = select_inst(size);
+	reg = select_reg(size);
+	EMIT(gi,"%s #%s, %s(#rip)",op,reg,car(cdr(car(l))));
+	val = make_null();
   } else {
 	val = gen_assign_inst(gi,l);
   }
@@ -2695,18 +2722,31 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   list_t *type_lst;
   type_t type;
   string_t name;
+  list_t *val;
 
 #ifdef __DEBUG__
   printf("lookup_symbol\n");
 #endif
 
-  sym = lookup_obj(env,car(lst));
+  name = car(lst);
+  sym = lookup_obj(env,name);
   if(!sym){
 	error(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),"undefined variable '%s' ",(string_t)car(lst));
 	return make_null();
   }
 
-  return gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
+  switch(SYMBOL_GET_SCOPE(sym)){
+  case GLOBAL:
+	val = add_number(make_null(),SYMBOL_GET_SIZE(sym));
+	val = add_symbol(val,name);
+	val = add_symbol(val,GLOBAL_VAR);
+	val = add_list(make_null(),val);
+	return val;
+	break;
+  default:
+	return gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
+	break;
+  }
 }
 
 static list_t *gen_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
@@ -2903,16 +2943,26 @@ static list_t *gen_load_unary(gen_info_t *gi,list_t *lst){
 static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj){
 
   list_t *val;
+  string_t name;
+  symbol_t *sym;
+  string_t op;
+  string_t reg;
 
 #ifdef __DEBUG__
   printf("gen_global_load\n");
 #endif
 
+  name = (string_t)car(lst);
   val = make_null();
   if(is_func(obj)){
-	EMIT(gi,"leaq %s(#rip),#rax",(string_t)car(lst));
+	EMIT(gi,"leaq %s(#rip),#rax",name);
 	val = add_symbol(val,FUNC);
 	val = add_number(val,FUNC_POINTER_SIZE);
+  } else if(is_symbol(obj)){
+	sym = (symbol_t *)obj;
+	op = select_inst(SYMBOL_GET_SIZE(sym));
+	reg = select_reg(SYMBOL_GET_SIZE(sym));
+	EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
   }
 
   return val;
@@ -3173,6 +3223,11 @@ static void load_parm_rest(gen_info_t *gi,env_t *env,env_t *cenv,symbol_t *sym){
   int_regs = 0;
   float_regs = 0;
   com = get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+  if(!com){
+	printf("error\n");
+	dump_ast(SYMBOL_GET_TYPE_LST(sym));
+	exit(1);
+  }
   for(p = com->members; IS_NOT_NULL_LIST(p); p = cdr(p)){
 	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(p));
 	if(!sym_mem){
@@ -5194,6 +5249,37 @@ static bool_t is_need_padding(gen_info_t *gi){
 
 static bool_t is_unary(list_t *lst){
   return IS_NULL_LIST(lst);
+}
+
+static bool_t is_srcfile(gen_info_t *gi,list_t *lst){
+
+  string_t gi_name;
+  string_t src_name;
+
+  gi_name = FILE_GET_NAME(GEN_INFO_GET_SRC(gi));
+  src_name = LIST_GET_SYMBOL_SRC(lst);
+  if(!src_name){
+	return FALSE;
+  }
+
+  if(STRCMP(gi_name,src_name)){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+
+static bool_t is_compound_proto_type(gen_info_t *gi,list_t *lst){
+
+#ifdef __DEBUG__
+  printf("is_compound_proto_type\n");
+#endif
+
+  if(IS_NULL_LIST(cdr(cdr(lst)))){
+	return TRUE;
+  }
+
+  return FALSE;
 }
 
 static func_t *make_func(list_t *lst,scope_t scope){
