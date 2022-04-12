@@ -711,6 +711,13 @@ static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst)
 	  sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),GLOBAL,name);
 	  insert_obj(env,name,sym);
 	  val = add_symbol(make_null(),name);
+	} else if(STRCMP(STATIC,name)){
+	  name = car(cdr(lst));
+	  sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),GLOBAL,name);
+	  EMIT(gi,".local\t%s",name);
+	  EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
+	  insert_obj(env,name,sym);
+	  val = add_symbol(make_null(),name);
 	} else {
 	  name = car(lst);
 	  sym = factory_symbol(gi,env,cenv,cdr(lst),GLOBAL,name);
