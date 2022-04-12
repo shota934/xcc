@@ -2947,22 +2947,24 @@ static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst
   symbol_t *sym;
   string_t op;
   string_t reg;
+  integer_t size;
 
 #ifdef __DEBUG__
   printf("gen_global_load\n");
 #endif
 
   name = (string_t)car(lst);
-  val = make_null();
   if(is_func(obj)){
 	EMIT(gi,"leaq %s(#rip),#rax",name);
-	val = add_symbol(val,FUNC);
+	val = add_symbol(make_null(),FUNC);
 	val = add_number(val,FUNC_POINTER_SIZE);
   } else if(is_symbol(obj)){
 	sym = (symbol_t *)obj;
-	op = select_inst(SYMBOL_GET_SIZE(sym));
-	reg = select_reg(SYMBOL_GET_SIZE(sym));
+	size = SYMBOL_GET_SIZE(sym);
+	op = select_inst(size);
+	reg = select_reg(size);
 	EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
+	val = add_number(make_null(),size);
   }
 
   return val;
