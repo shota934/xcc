@@ -718,7 +718,7 @@ static list_t *parser_parse_dclation(parser_t *parser){
   } else if(IS_LPAREN(t) || IS_RPAREN(t)){
 	lexer_put_token(PARSER_GET_LEX(parser),t);	
   } else {
-	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"expected ';' before '%s' ",TOKEN_GET_STR(t));
+	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected ';' before '%s' ",TOKEN_GET_STR(t));
 	exit(1);
   }
   

@@ -787,7 +787,6 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,en
 	save_registers(gi);
   }
 
-
   if(!lookup_obj(penv,name)){
 	insert_obj(penv,name,func);
   }
@@ -1854,6 +1853,11 @@ static list_t *gen_call_rest_args(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
 	name = car(car(p));
 	sym = lookup_obj(env,name);
 	com = get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
+	
+	if(!com){
+	  dump_ast(tail(SYMBOL_GET_TYPE_LST(sym)));
+	  exit(1);
+	}
 	for(q = com->members; IS_NOT_NULL_LIST(q); q = cdr(q)){
 
 	  if(gi->int_regs >= sizeof(REGS_64) / sizeof(REGS_64[0])){

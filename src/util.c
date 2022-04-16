@@ -449,28 +449,44 @@ compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
   list_t *l;
 
   obj = lookup_obj(cenv,name);
-  if(!obj){
-	return NULL;
-  }
-
-  switch(OBJ_GET_TYPE(obj)){
-  case TYPE_SYMBOL:
-	sym = (symbol_t *)obj;
-	switch(SYMBOL_GET_SYM_TYPE(sym)){
-	case TYPE_TYPE:
-	  l = tail(SYMBOL_GET_TYPE_LST(sym));
-	  if(IS_NULL_LIST(l)){
-		return NULL;
+  if(obj){
+	switch(OBJ_GET_TYPE(obj)){
+	case TYPE_SYMBOL:
+	  sym = (symbol_t *)obj;
+	  switch(SYMBOL_GET_SYM_TYPE(sym)){
+	  case TYPE_TYPE:
+		l = tail(SYMBOL_GET_TYPE_LST(sym));
+		if(IS_NULL_LIST(l)){
+		  return NULL;
+		}
+		return get_comp_obj(env,cenv,car(l));
+		break;
+	  default:
+		exit(1);
 	  }
-	  return get_comp_obj(env,cenv,car(l));
+	case TYPE_COMPOUND:
+	  return (compound_def_t *)obj;
 	  break;
-	default:
-	  exit(1);
 	}
-  case TYPE_COMPOUND:
-	return (compound_def_t *)obj;
-	break;
   }
 
+  obj = lookup_obj(env,name);
+  if(obj){
+	switch(OBJ_GET_TYPE(obj)){
+	case TYPE_SYMBOL:
+	  sym = (symbol_t *)obj;
+	  switch(SYMBOL_GET_SYM_TYPE(sym)){
+	  case TYPE_TYPE:
+		l = tail(SYMBOL_GET_TYPE_LST(sym));
+		if(IS_NULL_LIST(l)){
+		  return NULL;
+		}
+		return get_comp_obj(env,cenv,car(l));
+		break;
+	  default:
+		exit(1);
+	  }
+	}
+  }
   exit(1);
 }

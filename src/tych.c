@@ -15,7 +15,7 @@ static type_t check_not_op(env_t *env,list_t *lst);
 static type_t check_bit_op(env_t *env,env_t *cenv,list_t *lst);
 static type_t check_bit_shift_op(env_t *env,env_t *cenv,list_t *lst);
 
-static type_t check_op_func(env_t *env,list_t *lst);
+static type_t check_op_func(env_t *env,env_t *cenv,list_t *lst);
 static type_t check_op_dot(env_t *env,env_t *cenv,list_t *lst);
 static type_t check_op_ref(env_t *env,env_t *cenv,list_t *lst);
 static type_t check_op_array(env_t *env,env_t *cenv,list_t *lst);
@@ -25,10 +25,9 @@ static type_t check_type_enum();
 static type_t check_sizeof(env_t *env,env_t *cenv,list_t *lst);
 static type_t check_cast(env_t *env,env_t *cenv,list_t *lst);
 
-static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst);
+static type_t analyze_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst);
 static type_t analyze_utype(list_t *lst,type_t ty);
-static type_t analyze_array(env_t *env,list_t *type_lst,list_t *lst);
-
+static type_t analyze_array(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst);
 
 type_t check_type(env_t *env,env_t *cenv,list_t *lst){
 
@@ -118,7 +117,7 @@ static type_t check_op_type_sym(env_t *env,env_t *cenv,list_t *lst){
   } else if(STRCMP(name,MOD)){
 	return check_arith_op(env,cenv,cdr(lst));
   } else if(STRCMP(FUNC_CALL,name)){
-	return check_op_func(env,cdr(lst));
+	return check_op_func(env,cenv,cdr(lst));
   } else if(STRCMP(DOT,name)){
 	return check_op_dot(env,cenv,cdr(lst));
   } else if(STRCMP(REF_MEMBER_ACCESS,name)){
@@ -154,7 +153,7 @@ static type_t check_op_type_sym(env_t *env,env_t *cenv,list_t *lst){
 	case TYPE_SYMBOL:
 	case TYPE_COMPOUND:
 	  sym = (symbol_t *)obj;
-	  return analyze_type(env,SYMBOL_GET_TYPE_LST(sym),cdr(lst));
+	  return analyze_type(env,cenv,SYMBOL_GET_TYPE_LST(sym),cdr(lst));
 	  break;
 	case TYPE_ENUMULATE:
 	  return check_type_enum();
@@ -267,7 +266,7 @@ static type_t check_bit_shift_op(env_t *env,env_t *cenv,list_t *lst){
 }
 
 
-static type_t check_op_func(env_t *env,list_t *lst){
+static type_t check_op_func(env_t *env,env_t *cenv,list_t *lst){
 
   func_t *func;
   string_t name;
@@ -286,10 +285,10 @@ static type_t check_op_func(env_t *env,list_t *lst){
   switch (FUNC_GET_TYPE(func)){
   case TYPE_SYMBOL:
 	sym = (symbol_t *)func;
-	return analyze_type(env,get_ret_type(SYMBOL_GET_TYPE_LST(sym)),make_null());
+	return analyze_type(env,cenv,get_ret_type(SYMBOL_GET_TYPE_LST(sym)),make_null());
   case TYPE_FUNCTION:
 	DUMP_AST(FUNC_GET_RET_TYPE(func));
-	return analyze_type(env,FUNC_GET_RET_TYPE(func),make_null());
+	return analyze_type(env,cenv,FUNC_GET_RET_TYPE(func),make_null());
   default:
 	break;
   }
@@ -319,7 +318,7 @@ static type_t check_op_dot(env_t *env,env_t *cenv,list_t *lst){
 	type = check_op_type_list(COMPOUND_TYPE_GET_ENV(com),cenv,car(cdr(lst)));
   } else {
 	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
-	type = analyze_type(env,SYMBOL_GET_TYPE_LST(sym_mem),make_null());
+	type = analyze_type(env,cenv,SYMBOL_GET_TYPE_LST(sym_mem),make_null());
   }
 
   return type;
@@ -350,7 +349,7 @@ static type_t check_op_ref(env_t *env,env_t *cenv,list_t *lst){
 	type = check_op_type_list(COMPOUND_TYPE_GET_ENV(com),cenv,car(cdr(lst)));
   } else {
 	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(cdr(lst)));
-	type = analyze_type(env,SYMBOL_GET_TYPE_LST(sym_mem),make_null());
+	type = analyze_type(env,cenv,SYMBOL_GET_TYPE_LST(sym_mem),make_null());
   }
 
   return type;
@@ -428,20 +427,21 @@ static type_t check_cast(env_t *env,env_t *cenv,list_t *lst){
   printf("check_cast\n");
 #endif
 
-  return analyze_type(env,car(lst),make_null());
+  return analyze_type(env,cenv,car(lst),make_null());
 }
 
-static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst){
+static type_t analyze_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 
   string_t name;
   type_t type;
   symbol_t *sym;
+  compound_def_t *com;
+  object_t *obj;
 
 #ifdef __DEBUG__
   printf("analyze_type\n");
 #endif
 
-  DUMP_AST(lst);
   if(IS_NULL_LIST(type_lst) || !IS_SYMBOL(type_lst)){
 	return -1;
   }
@@ -458,7 +458,7 @@ static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst){
   } else if(STRCMP(name,"double")){
 	type = analyze_utype(lst,TYPE_DOUBLE);
   } else if(STRCMP(name,ARRAY)){
-	type = analyze_array(env,cdr(type_lst),lst);
+	type = analyze_array(env,cenv,cdr(type_lst),lst);
   } else if(STRCMP(name,STRUCT)){
 	type = analyze_utype(lst,TYPE_STRUCT);
   } else if(STRCMP(name,UNION)){
@@ -470,10 +470,28 @@ static type_t analyze_type(env_t *env,list_t *type_lst,list_t *lst){
 	  case TYPE_ENUM:
 		return analyze_utype(lst,TYPE_ENUM);
 		break;
+	  case TYPE_TYPE:
+		return analyze_type(env,cenv,SYMBOL_GET_TYPE_LST(sym),make_null());
+		break;
+	  default:
+		printf("Unknown type : %d\n",SYMBOL_GET_SYM_TYPE(sym));
+		break;
 	  }
 	}
 
-	DUMP_AST(type_lst);
+	com = lookup_obj(cenv,name);
+	if(com){
+	  switch(COMPOUND_TYPE_GET_TYPE(com)){
+	  case STRUCT_COMPOUND_TYPE:
+		return TYPE_STRUCT;
+		break;
+	  case UNION_COMPOUND_TYPE:
+		return TYPE_UNION;
+		break;
+	  default:
+		break;
+	  }
+	}
 	exit(1);
   }
 
@@ -501,7 +519,7 @@ static type_t analyze_utype(list_t *lst,type_t ty){
   return type;
 }
 
-static type_t analyze_array(env_t *env,list_t *type_lst,list_t *lst){
+static type_t analyze_array(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 
   type_t type;
 
@@ -513,5 +531,5 @@ static type_t analyze_array(env_t *env,list_t *type_lst,list_t *lst){
 	return TYPE_ARRAY;
   }
 
-  return analyze_type(env,cdr(type_lst),make_null());
+  return analyze_type(env,cenv,cdr(type_lst),make_null());
 }
