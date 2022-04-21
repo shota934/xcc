@@ -218,6 +218,21 @@ bool_t is_qualifier(list_t *lst){
   return FALSE;
 }
 
+bool_t is_static(list_t *lst){
+
+  string_t name;
+
+#ifdef __DEBUG__
+  printf("is_static\n");
+#endif
+  name = car(lst);
+  if(STRCMP(name,STATIC)){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+
 list_t *get_func_name(list_t *lst){
 
   list_t *p;
@@ -489,4 +504,18 @@ compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
 	}
   }
   exit(1);
+}
+
+string_t concat_strs(string_t s1,string_t s2){
+
+  int len;
+  char *s3;
+
+  len = strlen(s1) + 1 + strlen(s2) + NULL_LEN;
+  s3 = malloc(sizeof(char) * len);
+  strcat(s3,s1);
+  strcat(s3,".");
+  strcat(s3,s2);
+
+  return s3;
 }

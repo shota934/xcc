@@ -11,8 +11,6 @@
 #include <assert.h>
 #include "error.h"
 #include "dump.h"
-
-#define __LINUX__
 //
 //#define __DEBUG__
 //#define __CPP__DEBUG__

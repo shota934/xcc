@@ -102,5 +102,6 @@ try 0   test/test_ptr_str_operation.c              "Passed test pointer string o
 try 0   test/test_cast_and_increment.c             "Passed test cast and increment for pointer."
 try 0   test/test_internal_union.c                 "Passed test internal union."
 try 0   test/test_internal_struct.c                "Passed test internal struct."
+try 70  test/test_static_var.c                     "Passed test static variable."
 
 echo "Passed all Test cases."

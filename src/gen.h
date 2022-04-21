@@ -40,6 +40,8 @@ struct gen_info_t {
   int float_regs;
   int num_of_gp;
   int num_of_fp;
+  string_t func_name;
+  list_t *lst_of_sv;
 };
 
 gen_info_t *create_gen_info();

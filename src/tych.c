@@ -457,6 +457,8 @@ static type_t analyze_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 	type = analyze_utype(lst,TYPE_FLOAT);
   } else if(STRCMP(name,"double")){
 	type = analyze_utype(lst,TYPE_DOUBLE);
+  } else if(STRCMP(name,"unsigned")){
+	type = analyze_utype(lst,TYPE_UNSIGNED);
   } else if(STRCMP(name,ARRAY)){
 	type = analyze_array(env,cenv,cdr(type_lst),lst);
   } else if(STRCMP(name,STRUCT)){

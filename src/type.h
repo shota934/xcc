@@ -81,6 +81,8 @@ enum scope_t {
   ARGMENT,
   ARGMENT_ON_STACK,
   ENUMLATE,
+  STATIC_LOCAL,
+  STATIC_GLOBAL
 };
 
 enum decl_type_t {

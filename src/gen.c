@@ -105,6 +105,7 @@ static int gen_info_get_offset_on_stack(gen_info_t *gi);
 static list_t *gen_funcdef(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_func_name(gen_info_t *gi,list_t *lst);
 static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
+static list_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_function(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,env_t *penv);
 static list_t *gen_body(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_operand(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -124,15 +125,18 @@ static int gen_loacl_ints(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static int gen_loacl_int(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 
 static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,scope_t scope,string_t name);
+list_t *get_var_name(list_t *lst);
 static symbol_t *factory_member(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,integer_t offset);
-
+static list_t *gen_static_var(gen_info_t *gi,env_t *env);
 static list_t *gen_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_decl_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_return(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_block(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_assign_inst(gen_info_t *gi,list_t *lst);
+static list_t *gen_assign_static_inst(gen_info_t *gi,list_t *lst);
 static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym);
+static list_t *gen_static_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym,string_t name);
 static list_t *gen_symbol_var(gen_info_t *gi,env_t *env,env_t *cenv,symbol_t *sym,list_t *lst);
 static list_t *gen_symbol_ptr(gen_info_t *gi,env_t *env,symbol_t *sym,list_t *lst);
 static list_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -184,7 +188,10 @@ static list_t *gen_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_load_unary_ref(gen_info_t *gi,list_t *lst);
 static list_t *gen_load_unary(gen_info_t *gi,list_t *lst);
 static list_t *gen_local_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym);
+static list_t *gen_static_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym);
+
 static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol_t *sym);
+static list_t *gen_load_static_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol_t *sym,string_t name);
 static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj);
 static list_t *gen_enum_load(gen_info_t *gi,enumdef_t *enumdef);
 
@@ -342,8 +349,10 @@ gen_info_t *create_gen_info(){
   gi->float_regs = 0;
   gi->num_of_gp = 0;
   gi->num_of_fp = 0;
+  gi->func_name = NULL;
   map = map_create();
   INFO_SET_MAP(gi,map);
+  gi->lst_of_sv = make_null();
 
   return gi;
 }
@@ -366,7 +375,8 @@ void init_gen_info(gen_info_t *gi){
   gi->float_regs = 0;
   gi->num_of_gp = 0;
   gi->num_of_fp = 0;
-
+  gi->func_name = NULL;
+  
   return;
 }
 
@@ -404,8 +414,11 @@ list_t *gen(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	  v = gen_typedef(gi,env,cenv,cdr(car(l)));
 	} else if(STRCMP(DECL_VAR,type)){
 	  v = gen_global_var(gi,env,cenv,cdr(car(l)));
+	} else if(STRCMP(ASSIGN,type)){
+	  v = gen_assign_global_var(gi,env,cenv,cdr(car(l)));
 	} else {
 	  printf("<--------------\n");
+	  printf("type : [%s]\n",type);
 	  DUMP_AST(l);
 	  printf("<--------------\n");
 	  exit(1);
@@ -414,6 +427,8 @@ list_t *gen(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	l = cdr(l);
 	val = concat(val,v);
   }
+
+  val = concat(val,gen_static_var(gi,env));
 
   return val;
 }
@@ -677,7 +692,8 @@ static list_t *gen_funcdef(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   if(!set_find_obj(GEN_INFO_GET_SET(gi),name)){
 	return val;
   }
-
+  
+  gi->func_name = name;
   new_env = extend_env(env);
   new_cenv = extend_env(cenv);
   val = concat(val,gen_function(gi,new_env,new_cenv,get_func_name(cdr(lst)),env));
@@ -713,7 +729,7 @@ static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst)
 	  val = add_symbol(make_null(),name);
 	} else if(STRCMP(STATIC,name)){
 	  name = car(cdr(lst));
-	  sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),GLOBAL,name);
+	  sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),STATIC_LOCAL,name);
 	  EMIT(gi,".local\t%s",name);
 	  EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
 	  insert_obj(env,name,sym);
@@ -725,6 +741,44 @@ static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst)
 	  insert_obj(env,name,sym);
 	  val = add_symbol(make_null(),name);
 	}
+  }
+
+  return val;
+}
+
+static list_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
+
+  string_t name;
+  symbol_t *sym;
+  list_t *val;
+
+#ifdef __DEBUG__
+  printf("gen_assign_global_var\n");
+#endif
+
+  val = make_null();
+  name = car(cdr(car(lst)));
+  if(STRCMP(EXTERN,name)){
+	name = car(cdr(lst));
+	sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),GLOBAL,name);
+	insert_obj(env,name,sym);
+	val = add_symbol(make_null(),name);
+  } else if(STRCMP(STATIC,name)){
+	name = car(cdr(cdr(car(lst))));
+	sym = factory_symbol(gi,env,cenv,cdr(cdr(cdr(car(lst)))),STATIC_GLOBAL,name);
+	EMIT(gi,".data 0");
+	EMIT_NO_INDENT(gi,"%s:",name);
+	EMIT(gi,".%s\t%d","long",*(integer_t *)car(cdr(lst)));
+	insert_obj(env,name,sym);
+	val = add_symbol(make_null(),name);
+  } else {
+	sym = factory_symbol(gi,env,cenv,cdr(cdr(car(lst))),GLOBAL,name);
+	EMIT(gi,".data 0");
+	EMIT_NO_INDENT(gi,".global %s",name);
+	EMIT_NO_INDENT(gi,"%s:",name);
+	EMIT(gi,".%s\t%d","long",*(integer_t *)car(cdr(lst)));
+	insert_obj(env,name,sym);
+	val = add_symbol(make_null(),name);
   }
 
   return val;
@@ -742,13 +796,9 @@ static list_t *gen_func_name(gen_info_t *gi,list_t *lst){
   val = make_null();
   name = car(lst);
   EMIT(gi,".text");
-#ifdef __LINUX__
-  EMIT(gi,".global %s",name);
+
+  EMIT_NO_INDENT(gi,".global %s",name);
   EMIT_NO_INDENT(gi,"%s:",name);
-#else
-  EMIT(gi,".global _%s",name);
-  EMIT_NO_INDENT(gi,"_%s:",name);
-#endif
 
   return add_symbol(make_null(),name);
 }
@@ -1098,8 +1148,10 @@ static int gen_loacl_ints(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   localarea = 0;
   while(IS_NOT_NULL_LIST(p)){
 	size = gen_loacl_int(gi,env,cenv,car(p));
-	localarea += calc_mem_alignment(localarea,size);
-	localarea += size;
+	if(0 < size){
+	  localarea += calc_mem_alignment(localarea,size);
+	  localarea += size;
+	}
 	p = cdr(p);
   }
 
@@ -1109,18 +1161,35 @@ static int gen_loacl_ints(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 static int gen_loacl_int(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   string_t name;
+  list_t *l;
   int size;
-
+  
 #ifdef __DEBUG__
   printf("gen_loacl_int\n");
 #endif
-
-  size = select_size(gi,env,cenv,make_null(),cdr(cdr(car(lst))),FALSE);
+  
+  if(is_static(car(lst))){
+	return 0;
+  }
+  
+  l = get_var_name(cdr(car(lst)));
+  size = select_size(gi,env,cenv,make_null(),cdr(l),FALSE);
   if(size < 0){
 	size = -size * select_size(gi,env,cenv,make_null(),car(cdr(lst)),FALSE);
   }
 
   return size;
+}
+
+list_t *get_var_name(list_t *lst){
+  
+  list_t *p;
+  p = lst;
+  while(is_qualifier(p)){
+	p = cdr(p);
+  }
+
+  return p;
 }
 
 static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,scope_t scope,string_t name){
@@ -1146,12 +1215,16 @@ static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *ls
 	}
   }
 
+  offset = 0;
   switch(scope){
   case ARGMENT:
 	offset = calc_arg_offset(gi,size);
 	break;
   case ARGMENT_ON_STACK:
 	offset = calc_arg_offset_on_stack(gi,size);
+	break;
+  case STATIC_LOCAL:
+  case STATIC_GLOBAL:	
 	break;
   default:
 	offset = calc_offset(gi,size);
@@ -1186,6 +1259,31 @@ static symbol_t *factory_member(gen_info_t *gi,env_t *env,env_t *cenv,list_t *ls
   SYMBOL_SET_OFFSET(sym,offset);
 
   return sym;
+}
+
+static list_t *gen_static_var(gen_info_t *gi,env_t *env){
+
+  list_t *p;
+  list_t *val;
+  string_t name;
+  string_t value;
+  symbol_t *sym;
+  
+#ifdef __DEBUG__
+  printf("gen_static_var\n");
+#endif
+
+  EMIT_NO_INDENT(gi,"\n");
+  val = make_null();
+  for(p = gi->lst_of_sv; IS_NOT_NULL_LIST(p); p = cdr(p)){
+	name = car(car(p));
+	EMIT(gi,".data\t%d",0);
+	EMIT_NO_INDENT(gi,"%s:",name);
+	sym = car(cdr(cdr(cdr(car(p)))));
+	EMIT(gi,".%s\t%d","long",*(integer_t *)car(cdr(cdr(car(p)))));
+  }
+  
+  return val;
 }
 
 static list_t *gen_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
@@ -1304,10 +1402,20 @@ static list_t *gen_decl_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 #endif
 
   name = car(lst);
-  sym = factory_symbol(gi,env,cenv,cdr(lst),LOCAL,name);
-  insert_obj(env,name,sym);
-  val = add_symbol(make_null(),name);
-
+  if(STRCMP(name,STATIC)){
+	name = car(cdr(lst));
+	sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),STATIC_LOCAL,name);
+	insert_obj(env,name,sym);
+	name = concat_strs(gi->func_name,name);
+	val = cons(make_null(),sym);
+	val = add_symbol(val,name);
+	val = add_symbol(val,STATIC);
+  } else {
+	sym = factory_symbol(gi,env,cenv,cdr(lst),LOCAL,name);
+	insert_obj(env,name,sym);
+	val = add_symbol(make_null(),name);
+  }
+  
   return val;
 }
 
@@ -1315,6 +1423,7 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   list_t *r;
   list_t *l;
+  list_t *l1;
   list_t *val;
   symbol_t *sym;
   string_t op;
@@ -1328,7 +1437,14 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   ASSIGN_ON(gi);
   l = gen_operand(gi,env,cenv,lst);
   gen_info_set_lhs_type(gi,l);
-  if(is_name(l)){
+  if(is_static(l)){
+	if((length_of_list(l) == 3)){
+	  l1 = concat(lst,cdr(cdr(l)));
+	  l1 = add_symbol(l1,car(cdr(l)));
+	  gi->lst_of_sv = concat(gi->lst_of_sv,add_list(make_null(),l1));
+	  return make_null();
+	}
+  } else if(is_name(l)){
 	l = gen_operand(gi,env,cenv,l);
 	gi->assign_type = get_type(l);
   } else if(is_array(l)){
@@ -1346,6 +1462,8 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	reg = select_reg(size);
 	EMIT(gi,"%s #%s, %s(#rip)",op,reg,car(cdr(car(l))));
 	val = make_null();
+  } else if(is_static(l)){
+	val = gen_assign_static_inst(gi,cdr(l));
   } else {
 	val = gen_assign_inst(gi,l);
   }
@@ -1399,6 +1517,27 @@ static list_t *gen_assign_inst(gen_info_t *gi,list_t *lst){
   return val;
 }
 
+static list_t *gen_assign_static_inst(gen_info_t *gi,list_t *lst){
+
+  list_t *val;
+  string_t inst;
+  string_t reg;
+  string_t name;
+  int size;
+#ifdef __DEBUG__
+  printf("gen_assign_static_inst\n");
+#endif
+
+  size = *(integer_t *)car(cdr(car(lst)));
+  val = make_null();
+  name = car(car(lst));
+  inst = select_inst(size);
+  reg = select_reg(size);
+  EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
+  
+  return val;
+}
+
 static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym){
 
   list_t *val;
@@ -1414,10 +1553,10 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
 #endif
 
   flg = FALSE;
-  val = make_null();
   if(!IS_SYMBOL(lst)){
-	return gen_symbol_var(gi,env,cenv,sym,lst);
+	val = gen_symbol_var(gi,env,cenv,sym,lst);
   } else {
+	val = make_null();	
 	name = car(lst);
 	if(STRCMP(ARRAY,name)){
 
@@ -1442,12 +1581,10 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
 	  offset = SYMBOL_GET_OFFSET(sym);
 	  val = add_number(val,offset);
 	  val = add_symbol(val,ADDRESS);
-	  return val;
 	} else if(STRCMP(POINTER,name)){
 	  EMIT(gi,"movq %d(#rbp),#rcx",SYMBOL_GET_OFFSET(sym));
 	  val = add_symbol(val,POINTER);
 	  val = concat(val,gen_symbol_ptr(gi,env,sym,cdr(lst)));
-	  return val;
 	} else {
 	  type_lst = SYMBOL_GET_TYPE_LST(sym);
 	  size = SYMBOL_GET_SIZE(sym);
@@ -1456,10 +1593,38 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
 	  val = add_number(val,offset);
 	  val = add_number(val,size);
 	  val = add_list(make_null(),val);
-	  return val;
 	}
   }
 
+  return val;
+}
+
+static list_t *gen_static_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym,string_t name){
+  
+  list_t *val;
+  string_t new_name;
+  int size;
+  
+#ifdef __DEBUG__
+  printf("gen_static_complex_symbol\n");
+#endif
+
+  val = make_null();
+  switch(SYMBOL_GET_SCOPE(sym)){
+  case STATIC_LOCAL:	
+	new_name = concat_strs(gi->func_name,name);
+	break;
+  case STATIC_GLOBAL:
+	new_name = name;
+	break;
+  default:
+	break;
+  }
+  size = SYMBOL_GET_SIZE(sym);
+  val = add_number(val,size);
+  val = add_symbol(val,new_name);
+  val = add_list(make_null(),val);
+  
   return val;
 }
 
@@ -1593,11 +1758,7 @@ static list_t *gen_call_func(gen_info_t *gi,env_t *env,env_t *cenv,func_t *func,
 #endif
 
   val = make_null();
-#ifdef __LINUX__
   EMIT(gi,"callq %s",name);
-#else
-  EMIT(gi,"callq _%s",name);
-#endif
 
   size = select_size(gi,env,cenv,make_null(),FUNC_GET_RET_TYPE(func),FALSE);
   val = add_number(val,size);
@@ -1626,12 +1787,10 @@ static list_t *gen_call_func_ptr(gen_info_t *gi,env_t *env,env_t *cenv,symbol_t 
 #ifdef __DEBUG__
   printf("gen_call_func_ptr\n");
 #endif
-
-#ifdef __LINUX__
+  
   gen_body(gi,env,cenv,lst);
   EMIT(gi,"call *#rax");
-#endif
-
+  
   val = make_null();
   size = select_size(gi,env,cenv,make_null(),SYMBOL_GET_RET_LST(sym),FALSE);
 
@@ -2752,12 +2911,18 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	val = add_symbol(val,name);
 	val = add_symbol(val,GLOBAL_VAR);
 	val = add_list(make_null(),val);
-	return val;
+	break;
+  case STATIC_LOCAL:
+  case STATIC_GLOBAL:
+	val = gen_static_complex_symbol(gi,env,cenv,cdr(lst),sym,name);
+	val = add_symbol(val,STATIC);
 	break;
   default:
-	return gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
+	val = gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
 	break;
   }
+
+  return val;
 }
 
 static list_t *gen_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
@@ -2785,6 +2950,10 @@ static list_t *gen_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   case GLOBAL:
 	val = gen_global_load(gi,env,cenv,lst,obj);
 	break;
+  case STATIC_LOCAL:
+  case STATIC_GLOBAL:
+	val = gen_static_load(gi,env,cenv,lst,(symbol_t *)obj);	
+	break;
   case ENUMLATE:
 	val = gen_enum_load(gi,(enumdef_t *)obj);
 	break;
@@ -2809,6 +2978,34 @@ static list_t *gen_local_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,
 	val = gen_load_inst(gi,val,FALSE,sym);
   }
 
+  return val;
+}
+
+static list_t *gen_static_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym){
+
+  string_t name;
+  list_t *val;
+
+#ifdef __DEBUG__
+  printf("gen_static_load\n");
+#endif
+
+  val = make_null();
+  val = gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
+  if(!IS_OBJECT(val)){
+	switch(SYMBOL_GET_SCOPE(sym)){
+	case STATIC_LOCAL:
+	  name = concat_strs(gi->func_name,(string_t)car(lst));
+	  break;
+	case STATIC_GLOBAL:
+	  name = (string_t)car(lst);
+	  break;
+	default:
+	  break;
+	}
+	val = gen_load_static_inst(gi,val,FALSE,sym,name);
+  }
+  
   return val;
 }
 
@@ -2891,6 +3088,30 @@ static list_t *gen_load_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol_t *sym
 	exit(1);
   }
 
+  return val;
+}
+
+static list_t *gen_load_static_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol_t *sym,string_t name){
+
+  string_t inst;
+  string_t reg;
+  list_t *val;
+  int size;
+  
+#ifdef __DEBUG__
+  printf("gen_load_static_inst\n");
+#endif
+  
+  val = make_null();
+  if(is_value(lst)){
+	size = *(integer_t *)car(car(lst));
+	inst = select_inst(size);
+	reg = select_reg(size);
+	EMIT(gi,"%s %s(#rip),#%s",inst,name,reg);
+	val = add_number(make_null(),get_type(car(lst)));	
+	val = add_number(val,size);
+  }
+  
   return val;
 }
 

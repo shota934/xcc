@@ -42,11 +42,9 @@ static void add_path(compile_info_t *compile_info){
 
   std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_XCC));
   std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_PATH));
-#ifdef __LINUX__
   std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_LINUX_PATH));
   std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_GNU_LINUX_PATH));
   std_path_lst = concat(std_path_lst,cons(make_null(),INCLUDE_GNU_LINUX_LIB_PATH));
-#endif
   
   compile_info->std_path_lst = std_path_lst;
   
