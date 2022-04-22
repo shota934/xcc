@@ -104,7 +104,7 @@ static int gen_info_get_offset_on_stack(gen_info_t *gi);
 
 static list_t *gen_funcdef(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_func_name(gen_info_t *gi,list_t *lst);
-static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
+static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,bool_t is_extern);
 static list_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_function(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,env_t *penv);
 static list_t *gen_body(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -413,7 +413,7 @@ list_t *gen(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	} else if(IS_TYPEDEF(type)){
 	  v = gen_typedef(gi,env,cenv,cdr(car(l)));
 	} else if(STRCMP(DECL_VAR,type)){
-	  v = gen_global_var(gi,env,cenv,cdr(car(l)));
+	  v = gen_global_var(gi,env,cenv,cdr(car(l)),FALSE);
 	} else if(STRCMP(ASSIGN,type)){
 	  v = gen_assign_global_var(gi,env,cenv,cdr(car(l)));
 	} else {
@@ -709,7 +709,7 @@ static list_t *gen_funcdef(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   return val;
 }
 
-static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
+static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,bool_t is_extern){
 
   string_t name;
   symbol_t *sym;
@@ -723,21 +723,22 @@ static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst)
   } else {
 	name = car(lst);
 	if(STRCMP(EXTERN,name)){
-	  name = car(cdr(lst));
-	  sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),GLOBAL,name);
-	  insert_obj(env,name,sym);
-	  val = add_symbol(make_null(),name);
+	  val = gen_global_var(gi,env,cenv,cdr(lst),TRUE);
 	} else if(STRCMP(STATIC,name)){
 	  name = car(cdr(lst));
-	  sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),STATIC_LOCAL,name);
-	  EMIT(gi,".local\t%s",name);
-	  EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
+	  sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),STATIC_GLOBAL,name);
+	  if(!is_extern){
+		EMIT(gi,".local\t%s",name);
+		EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
+	  }
 	  insert_obj(env,name,sym);
 	  val = add_symbol(make_null(),name);
 	} else {
 	  name = car(lst);
 	  sym = factory_symbol(gi,env,cenv,cdr(lst),GLOBAL,name);
-	  EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
+	  if(!is_extern){
+		EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
+	  }
 	  insert_obj(env,name,sym);
 	  val = add_symbol(make_null(),name);
 	}
