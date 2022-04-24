@@ -3837,7 +3837,6 @@ static list_t *gen_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *l
   val = make_null();
   DUMP_AST(lst);
   val = gen_operand(gi,env,cenv,car(lst));
-  dump_ast(val);
   if(IS_OBJECT(val)){
 	sym = car(val);
   } else if(is_static(val)){
