@@ -457,6 +457,25 @@ bool_t is_global_var(list_t *lst){
   return FALSE;
 }
 
+bool_t is_compound_type(list_t *lst){
+
+  string_t name;
+#ifdef __DEBUG__
+  printf("is_compound_type\n");
+#endif
+
+  if(!IS_SYMBOL(lst)){
+	return FALSE;
+  }
+
+  name = car(lst);
+  if(STRCMP(name,STRUCT) || STRCMP(name,UNION)){
+	return TRUE;
+  }
+
+  return FALSE;
+}
+
 compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
 
   object_t *obj;

@@ -39,6 +39,7 @@ symbol_t *lookup_member(env_t *env,string_t name);
 type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst);
 int calc_array_size(list_t *lst);
 bool_t is_integertype(list_t *lst);
+bool_t is_compound_type(list_t *lst);
 bool_t is_global_var(list_t *lst);
 compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name);
 string_t concat_strs(string_t s1,string_t s2);
