@@ -3919,6 +3919,7 @@ static list_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,li
 	  op = select_inst(size);
 	  reg = select_reg(size);
 	  EMIT(gi,"%s %d+%s(#rip),#%s",op,size,name,reg);
+	  val = add_number(val,size);
 	}
   }
 
