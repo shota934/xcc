@@ -78,10 +78,6 @@ struct list_t {
 #define IS_DECIMAL(l) (l->type == DECIMAL)
 #define IS_OBJECT(l)  (l->type == OBJECT)
 
-#define CDR(l) l->next
-#define CAR(l) car(l)
-
-
 list_t *make_null();
 void *car(list_t *lst);
 list_t *cdr(list_t *lst);

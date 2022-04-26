@@ -25,24 +25,24 @@ static void dump_body(list_t *lst){
     return;
     break;
   case INTEGER:
-    fprintf(stdout,"%d ",(*(int *)CAR(lst)));
+    fprintf(stdout,"%d ",(*(int *)car(lst)));
     break;
   case DECIMAL:
-    fprintf(stdout,"%f ",(*(double *)CAR(lst)));
+    fprintf(stdout,"%s ",(string_t)car(lst));
     break;
   case LIST:
     fprintf(stdout,"( ");
-    dump_body((list_t *)CAR(lst));
+    dump_body((list_t *)car(lst));
     fprintf(stdout," )");
     break;
   case SYMBOL:
-    fprintf(stdout,"%s ",(char *)CAR(lst));
+    fprintf(stdout,"%s ",(char *)car(lst));
     break;
   case STRING:
-    fprintf(stdout,"%s ",(char *)CAR(lst));
+    fprintf(stdout,"%s ",(char *)car(lst));
     break;
   case CHARACTER:
-    fprintf(stdout,"'%c' ",*(char *)CAR(lst));
+    fprintf(stdout,"'%c' ",*(char *)car(lst));
   default:
     break;
   }

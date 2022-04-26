@@ -54,7 +54,7 @@ type_t util_get_type(list_t *lst){
   return (*(type_t *)car(cdr(cdr(lst))));
 }
 
-bool_t is_float(list_t  *lst){
+bool_t is_float(list_t *lst){
 
   string_t type;
 

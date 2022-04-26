@@ -14,7 +14,7 @@
 int hash(char *str);
 bool_t is_inttype(list_t *lst);
 type_t util_get_type(list_t *lst);
-bool_t is_float(list_t  *lst);
+bool_t is_float(list_t *lst);
 bool_t is_pointer(list_t *lst);
 bool_t is_address(list_t *lst);
 bool_t is_deref(list_t *lst);

@@ -330,6 +330,9 @@ list_t *add_object(list_t *lst1, list_t *lst2) {
   case LIST:
 	lst = add_list(lst1, car(lst2));
 	break;
+  case DECIMAL:
+	lst = add_float(lst1,(string_t)car(lst2));
+	break;
   default:
 	exit(1);
 	break;
