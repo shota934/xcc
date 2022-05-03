@@ -646,7 +646,13 @@ static int gen_info_get_no_align_localarea(gen_info_t *gi){
 }
 
 static void gen_info_set_lhs_type(gen_info_t *gi, list_t *lhs_type){
-  gi->lhs_type = lhs_type;
+
+  if(IS_LIST(lhs_type)){
+	gi->lhs_type = tail(car(lhs_type));
+  } else {
+	gi->lhs_type = tail(lhs_type);
+  }
+
   return;
 }
 
@@ -871,7 +877,6 @@ static list_t *gen_function(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,en
 #endif
 
   val = make_null();
-
   name = car(lst);
   gen_func_name(gi,lst);
 
@@ -1108,12 +1113,7 @@ static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst){
 	val = add_number(val,sizeof(float));
 	break;
   default:
-	dfval = strtod(car(lst),NULL);
-	EMIT(gi,".quad %lu",*(unsigned long *)&dfval);
-	EMIT(gi,".text");
-	EMIT(gi,"movsd %s(#rip), #xmm8", l);
-	val = add_number(make_null(),TYPE_DOUBLE);
-	val = add_number(val,sizeof(double));
+	exit(1);
 	break;
   }
 
@@ -1500,9 +1500,16 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	  gi->lst_of_sv = concat(gi->lst_of_sv,add_list(make_null(),l1));
 	  return make_null();
 	}
+	sym = car(cdr(car(cdr(l))));
+	gi->assign_type = conv_type(env,cenv,SYMBOL_GET_TYPE_LST(sym),make_null());
   } else if(is_name(l)){
 	l = gen_operand(gi,env,cenv,l);
 	gi->assign_type = get_type(l);
+  } else if(is_global_var(car(l))){
+	sym = car(cdr(cdr(car(l))));
+	gi->assign_type = conv_type(env,cenv,SYMBOL_GET_TYPE_LST(sym),make_null());
+  } else if(IS_LIST(l)){
+	gi->assign_type = get_type(tail(car(l)));
   } else if(is_array(l)){
 	push(gi,"rcx");
   }
@@ -1514,15 +1521,20 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	val = r;
   } else if(is_global_var(car(l))){
 	sym = car(cdr(cdr(car(l))));
+	gi->assign_type = get_type(tail(SYMBOL_GET_TYPE_LST(sym)));
 	size = SYMBOL_GET_SIZE(sym);
 	if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
 	  op = select_inst_fp(size);
 	  reg = "xmm8";
+	  if(size == 4){
+		EMIT(gi,"cvtss2sd #xmm8, #xmm8");
+	  }
+	  EMIT(gi,"%s #%s, %s(#rip)",op,reg,car(cdr(car(l))));
 	} else {
 	  op = select_inst(size);
 	  reg = select_reg(size);
+	  EMIT(gi,"%s #%s, %s(#rip)",op,reg,car(cdr(car(l))));
 	}
-	EMIT(gi,"%s #%s, %s(#rip)",op,reg,car(cdr(car(l))));
 	val = make_null();
   } else if(is_static(l)){
 	if(length_of_list(l) == 4){
@@ -1604,12 +1616,16 @@ static list_t *gen_assign_static_inst(gen_info_t *gi,list_t *lst){
   if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
 	inst = select_inst_fp(size);
 	reg = "xmm8";
+	if(size == 4){
+	  EMIT(gi,"cvtss2sd #xmm8, #xmm8");
+	}
+	EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
   } else {
 	inst = select_inst(size);
-	reg = select_reg(size);	
+	reg = select_reg(size);
+	EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
   }
-  EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
-  
+
   return val;
 }
 
@@ -1822,6 +1838,14 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   printf("gen_call\n");
 #endif
 
+  name = car(car(lst));
+  obj = lookup_obj(env,name);
+  if(!obj){
+	warn(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),
+		 "implicit declaration of function '%s'",(string_t)car(car(lst)));
+	return NULL;
+  }
+
   fop = FALSE;
   args = car(cdr(lst));
   cl = categorize(env,cenv,args);
@@ -1833,14 +1857,6 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   if(is_need_padding(gi)){
 	gen_info_add_stack_pos(gi,8);
 	fop = TRUE;
-  }
-
-  name = car(car(lst));
-  obj = lookup_obj(env,name);
-  if(!obj){
-	warn(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),
-		 "implicit declaration of function '%s'",(string_t)car(car(lst)));
-	return NULL;
   }
 
   if(is_func(obj)){
@@ -3321,11 +3337,15 @@ static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst
 	if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
 	  op = select_inst_fp(size);
 	  reg = "xmm8";
+	  EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
+	  if(size == 4){
+		EMIT(gi,"cvtss2sd #xmm8, #xmm8");
+	  }
 	} else {
 	  op = select_inst(size);
 	  reg = select_reg(size);
+	  EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
 	}
-	EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
 	val = add_number(make_null(),size);
   }
 

@@ -31,7 +31,6 @@ struct symbol_t {
   int offset;
   int size;
   env_t *env;
-
   union {
 	list_t *ret_type;
   } func;
