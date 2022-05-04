@@ -1115,7 +1115,12 @@ static list_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst){
 	val = add_number(val,sizeof(float));
 	break;
   default:
-	exit(1);
+	dfval = strtod(car(lst),NULL);
+	EMIT(gi,".quad %lu",*(unsigned long *)&dfval);
+	EMIT(gi,".text");
+	EMIT(gi,"movsd %s(#rip), #xmm8", l);
+	val = add_number(make_null(),TYPE_DOUBLE);
+	val = add_number(val,sizeof(double));
 	break;
   }
 
@@ -1615,9 +1620,6 @@ static list_t *gen_assign_static_inst(gen_info_t *gi,list_t *lst){
   if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
 	inst = select_inst_fp(size);
 	reg = "xmm8";
-	if(size == 4){
-	  EMIT(gi,"cvtss2sd #xmm8, #xmm8");
-	}
 	EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
   } else {
 	inst = select_inst(size);
@@ -2116,6 +2118,7 @@ static list_t *gen_call_float_args(gen_info_t *gi,env_t *env,env_t *cenv,list_t 
 	if(IS_NOT_NULL_LIST(q)){
 	  gi->assign_type = conv_type(env,cenv,car(q),make_null());
 	}
+
 	v = gen_operand(gi,env,cenv,arg);
 	if((gi->assign_type == TYPE_FLOAT)
 	   && (2 <= length_of_list(v))){
@@ -3271,6 +3274,7 @@ static list_t *gen_load_static_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol
   string_t reg;
   list_t *val;
   int size;
+  type_t type;
   
 #ifdef __DEBUG__
   printf("gen_load_static_inst\n");
@@ -3279,10 +3283,19 @@ static list_t *gen_load_static_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol
   val = make_null();
   if(is_value(lst)){
 	size = *(integer_t *)car(car(lst));
-	inst = select_inst(size);
-	reg = select_reg(size);
-	EMIT(gi,"%s %s(#rip),#%s",inst,name,reg);
-	val = add_number(make_null(),get_type(car(lst)));	
+	type = get_type(car(lst));
+	if((type == TYPE_FLOAT)
+	   || (type == TYPE_DOUBLE)){
+	  inst = select_inst_fp(size);
+	  reg = "xmm8";
+	  EMIT(gi,"%s %s(#rip),#%s",inst,name,reg);
+	} else {
+	  inst = select_inst(size);
+	  reg = select_reg(size);
+	  EMIT(gi,"%s %s(#rip),#%s",inst,name,reg);
+	}
+	gi->assign_type = type;
+	val = add_number(make_null(),get_type(car(lst)));
 	val = add_number(val,size);
   }
   
