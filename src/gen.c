@@ -1528,9 +1528,6 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
 	  op = select_inst_fp(size);
 	  reg = "xmm8";
-	  if(size == 4){
-		EMIT(gi,"cvtss2sd #xmm8, #xmm8");
-	  }
 	  EMIT(gi,"%s #%s, %s(#rip)",op,reg,car(cdr(car(l))));
 	} else {
 	  op = select_inst(size);
@@ -2120,11 +2117,15 @@ static list_t *gen_call_float_args(gen_info_t *gi,env_t *env,env_t *cenv,list_t 
 	  gi->assign_type = conv_type(env,cenv,car(q),make_null());
 	}
 	v = gen_operand(gi,env,cenv,arg);
+	if((gi->assign_type == TYPE_FLOAT)
+	   && (2 <= length_of_list(v))){
+	  EMIT(gi,"cvtss2sd #xmm8, #xmm8");
+	}
+	gi->assign_type = TYPE_UNKNOWN;
 	val = concat(val,v);
 	push_xmm(gi,"xmm8");
 	gi->float_regs++;
 	float_regs++;
-	gi->assign_type = TYPE_UNKNOWN;
 	q = cdr(q);
   }
   pop_float(gi,float_regs);
