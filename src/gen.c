@@ -1830,6 +1830,7 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   list_t *args;
   list_t *cl;
   list_t *tlst;
+  list_t *l;
   list_t *args_of_no_vars;
   object_t *obj;
   symbol_t *sym;
@@ -1846,8 +1847,10 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   name = car(car(lst));
   obj = lookup_obj(env,name);
   if(!obj){
-	warn(LIST_GET_SYMBOL_LINE_NO(lst),LIST_GET_SYMBOL_SRC(lst),
-		 "implicit declaration of function '%s'",(string_t)car(car(lst)));
+	l = car(lst);
+	warn(LIST_GET_SYMBOL_LINE_NO(l),
+		 LIST_GET_SYMBOL_SRC(l),
+		 "implicit declaration of function '%s'",(string_t)car(l));
 	return NULL;
   }
 
