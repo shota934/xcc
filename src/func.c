@@ -1,6 +1,7 @@
 #include "func.h"
 #include "mem.h"
 #include "type.h"
+#include "util.h"
 
 static list_t *make_type_list_of_variable(list_t *args);
 
@@ -13,9 +14,13 @@ func_t *create_func(list_t *args,list_t *ret_type,scope_t scope){
   func->obj.scope = scope;
   func->args = args;
   func->no_var_args = make_type_list_of_variable(args);
-  func->has_var_args = FALSE;
+  if(is_var_args(car(tail(args)))){
+	func->has_var_args = TRUE;
+  } else {
+	func->has_var_args = FALSE;
+  }
   func->ret_type = ret_type;
-  func->len = length_of_list(args);
+  func->num_of_args = length_of_list(func->no_var_args);
 
   return func;
 }

@@ -1827,7 +1827,7 @@ static list_t *gen_symbol_ptr(gen_info_t *gi,env_t *env,symbol_t *sym,list_t *ls
 static list_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   list_t *val;
-  list_t *args;
+  list_t *parms;
   list_t *cl;
   list_t *tlst;
   list_t *l;
@@ -1836,34 +1836,52 @@ static list_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   symbol_t *sym;
   func_t *func;
   string_t name;
-  int len_args;
   bool_t fop;
   int osa;
+  int num_of_args;
+  int num_of_params;
+  bool_t flag_of_var_args;
 
 #ifdef __DEBUG__
   printf("gen_call\n");
 #endif
 
   name = car(car(lst));
+  l = car(lst);
   obj = lookup_obj(env,name);
   if(!obj){
-	l = car(lst);
 	warn(LIST_GET_SYMBOL_LINE_NO(l),
 		 LIST_GET_SYMBOL_SRC(l),
-		 "implicit declaration of function '%s'",(string_t)car(l));
+		 "implicit declaration of function '%s'",name);
 	return NULL;
   }
 
+  flag_of_var_args = FALSE;
   if(is_func(obj)){
 	func = (func_t *)obj;
 	args_of_no_vars = FUNC_GET_NO_VAR_ARG(func);
+	num_of_args = FUNC_GET_NUM_OF_ARGS(func);
+	flag_of_var_args = FUNC_IS_HAVING_VAR_ARG(func);
   } else {
 	sym = (symbol_t *)obj;
 	args_of_no_vars = car(get_arg_list(SYMBOL_GET_TYPE_LST(sym)));
+	num_of_args = length_of_list(args_of_no_vars);
+	flag_of_var_args = is_var_args(car(tail(args_of_no_vars)));
   }
   fop = FALSE;
-  args = car(cdr(lst));
-  cl = categorize(env,cenv,args);
+  parms = car(cdr(lst));
+
+  num_of_params = length_of_list(parms);
+  if(!flag_of_var_args){
+	if(num_of_params != num_of_args){
+	  error(LIST_GET_SYMBOL_LINE_NO(l),
+			LIST_GET_SYMBOL_SRC(l),
+			"too few arguments to function '%s'",name);
+	  return NULL;
+	}
+  }
+
+  cl = categorize(env,cenv,parms);
   tlst = categorize_type(env,args_of_no_vars,TRUE);
 
   // Parameter Passing
