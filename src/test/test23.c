@@ -9,5 +9,5 @@ int main(){
   p = &a;
   *p = 30;
   
-  return *p 
+  return *p;
 }

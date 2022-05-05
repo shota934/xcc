@@ -963,8 +963,8 @@ static list_t *parser_parse_stmts(parser_t *parser){
   new_lst = parser_parse_stmt(parser);
   if(IS_NOT_NULL_LIST(new_lst)){
     new_lst = concat(new_lst,parser_parse_stmts(parser));
+
   }
-  
   return new_lst;
 }
 
@@ -979,7 +979,10 @@ static list_t *parser_parse_stmt(parser_t *parser){
   
   t = lexer_get_token(PARSER_GET_LEX(parser));
   new_lst = make_null();
-  if(IS_SEMI_COLON(t)){
+  if(IS_RBRACE(t)){
+	lexer_put_token(PARSER_GET_LEX(parser),t);
+	return new_lst;
+  } else if(IS_SEMI_COLON(t)){
 	new_lst = add_list(make_null(),new_lst);
 	return new_lst;
   } else if(IS_RET(t)){
@@ -989,15 +992,19 @@ static list_t *parser_parse_stmt(parser_t *parser){
   } else if(IS_IF(t)){
 	new_lst = make_symbol(new_lst,t);
 	new_lst = add_list(make_null(),concat(new_lst,parser_parse_if(parser)));
+	return new_lst;
   } else if(IS_SWITCH(t)){
 	new_lst = make_symbol(new_lst,t);
 	new_lst = add_list(make_null(),concat(new_lst,parser_parse_switch(parser)));
+	return new_lst;	
   } else if(IS_WHILE(t)){
 	new_lst = make_symbol(new_lst,t);
 	new_lst = add_list(make_null(),concat(new_lst,parser_parse_while(parser)));
+	return new_lst;
   } else if(IS_FOR(t)){
 	new_lst = make_symbol(new_lst,t);
 	new_lst = add_list(make_null(),concat(new_lst,parser_parse_for(parser)));
+	return new_lst;
   } else if(IS_BREAK(t)){
 	new_lst = make_symbol(new_lst,t);
 	new_lst = add_list(make_null(),new_lst);
@@ -1023,6 +1030,7 @@ static list_t *parser_parse_stmt(parser_t *parser){
 	  if(IS_COLON(tt)){
 		new_lst = make_symbol(new_lst,t);
 		new_lst = make_keyword(new_lst,LABEL);
+		return new_lst;
 	  } else {
 		lexer_put_token(PARSER_GET_LEX(parser),tt);
 		lexer_put_token(PARSER_GET_LEX(parser),t);
@@ -1031,14 +1039,14 @@ static list_t *parser_parse_stmt(parser_t *parser){
 	} else {
 	  lexer_put_token(PARSER_GET_LEX(parser),t);
 	  new_lst = parser_parse_stmt_expr(parser);
+	  return new_lst;
 	}
   }
   
-  if((!IS_IF(t)) && (!IS_WHILE(t)) && (!IS_FOR(t))){
-	t = lexer_get_token(PARSER_GET_LEX(parser));
-	if(!IS_SEMI_COLON(t)){
-	  lexer_put_token(PARSER_GET_LEX(parser),t);
-	}
+  t = lexer_get_token(PARSER_GET_LEX(parser));
+  if(!IS_SEMI_COLON(t)){
+	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n",";",TOKEN_GET_STR(t));
+	lexer_put_token(PARSER_GET_LEX(parser),t);
   }
   
   return new_lst;
