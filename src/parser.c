@@ -1045,7 +1045,7 @@ static list_t *parser_parse_stmt(parser_t *parser){
   
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_SEMI_COLON(t)){
-	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n",";",TOKEN_GET_STR(t));
+	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]",";",TOKEN_GET_STR(t));
 	lexer_put_token(PARSER_GET_LEX(parser),t);
   }
   

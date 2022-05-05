@@ -480,7 +480,7 @@ static token_t *scan_operator(lexer_t *lex,char c){
   lex->cur = end;
   type = search_keyword(text);
   
-  return create_token(type,text,lex->line_no,NULL);
+  return create_token(type,text,lex->line_no,LEXER_GET_NAME(lex));
 }
 
 
