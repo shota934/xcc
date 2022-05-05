@@ -37,6 +37,7 @@ char *FLOAT_REGS[] = {"xmm0","xmm1","xmm2","xmm3","xmm4","xmm5","xmm6","xmm7"};
 #define TYPE_ASM_SHORT "short"
 #define TYPE_ASM_LONG  "long"
 #define TYPE_ASM_QUAD  "quad"
+#define TYPE_ASM_STRING "string"
 
 #define FUNC        "FUNC"
 #define SWITCH_NEXT "next"
@@ -361,6 +362,7 @@ gen_info_t *create_gen_info(){
   gi->num_of_gp = 0;
   gi->num_of_fp = 0;
   gi->func_name = NULL;
+  gi->flag_of_global_assign = FALSE;
   map = map_create();
   INFO_SET_MAP(gi,map);
   gi->lst_of_sv = make_null();
@@ -386,6 +388,7 @@ void init_gen_info(gen_info_t *gi){
   gi->float_regs = 0;
   gi->num_of_gp = 0;
   gi->num_of_fp = 0;
+  gi->flag_of_global_assign = FALSE;
   gi->func_name = NULL;
   
   return;
@@ -777,6 +780,7 @@ static list_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_
 
   val = make_null();
   name = car(cdr(car(lst)));
+  gi->flag_of_global_assign = TRUE;
   if(STRCMP(EXTERN,name)){
 	name = car(cdr(lst));
 	sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),GLOBAL,name);
@@ -785,24 +789,42 @@ static list_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_
   } else if(STRCMP(STATIC,name)){
 	name = car(cdr(cdr(car(lst))));
 	sym = factory_symbol(gi,env,cenv,cdr(cdr(cdr(car(lst)))),STATIC_GLOBAL,name);
-	EMIT(gi,".data 0");
-	EMIT_NO_INDENT(gi,"%s:",name);
 	if(is_compound_type(SYMBOL_GET_TYPE_LST(sym))){
+	  EMIT(gi,".data 0");
+	  EMIT_NO_INDENT(gi,"%s:",name);
 	  val = gen_global_compound_members(gi,env,cenv,cdr(car(cdr(lst))),sym);
 	} else {
-	  EMIT(gi,".%s\t%d",select_size_type(SYMBOL_GET_SIZE(sym)),*(integer_t *)car(cdr(lst)));
+	  if(IS_STRING_OBJ(cdr(lst))){
+		val = gen_operand(gi,env,cenv,cdr(lst));		
+		EMIT(gi,".data 0");
+		EMIT_NO_INDENT(gi,"%s:",name);
+		EMIT(gi,".%s\t%s",TYPE_ASM_QUAD,car(cdr(cdr(val))));		
+	  } else {
+		EMIT(gi,".data 0");
+		EMIT_NO_INDENT(gi,"%s:",name);
+		EMIT(gi,".%s\t%d",select_size_type(SYMBOL_GET_SIZE(sym)),*(integer_t *)car(cdr(lst)));
+	  }
 	}
 	insert_obj(env,name,sym);
 	val = add_symbol(make_null(),name);
   } else {
 	sym = factory_symbol(gi,env,cenv,cdr(cdr(car(lst))),GLOBAL,name);
-	EMIT(gi,".data 0");
-	EMIT_NO_INDENT(gi,".global %s",name);
-	EMIT_NO_INDENT(gi,"%s:",name);
-	EMIT(gi,".%s\t%d",select_size_type(SYMBOL_GET_SIZE(sym)),*(integer_t *)car(cdr(lst)));
+	if(IS_STRING_OBJ(cdr(lst))){
+	  val = gen_operand(gi,env,cenv,cdr(lst));
+	  EMIT(gi,".data 0");
+	  EMIT(gi,".global %s",name);
+	  EMIT_NO_INDENT(gi,"%s:",name);
+	  EMIT(gi,".%s\t%s",TYPE_ASM_QUAD,car(cdr(cdr(val))));
+	} else {
+	  EMIT(gi,".data 0");
+	  EMIT(gi,".global %s",name);
+	  EMIT_NO_INDENT(gi,"%s:",name);
+	  EMIT(gi,".%s\t%d",select_size_type(SYMBOL_GET_SIZE(sym)),*(integer_t *)car(cdr(lst)));
+	}
 	insert_obj(env,name,sym);
 	val = add_symbol(make_null(),name);
   }
+  gi->flag_of_global_assign = FALSE;
 
   return val;
 }
@@ -1039,8 +1061,12 @@ static list_t *gen_string(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	gen_label(gi,l);
 	EMIT(gi,".string %s",(string_t)car(lst));
 	EMIT(gi,".text");
-	EMIT(gi,"lea %s(#rip), #rax",l);
+
+	if(!gi->flag_of_global_assign){
+	  EMIT(gi,"lea %s(#rip), #rax",l);
+	}
 	val = add_number(val,TYPE_STRING);
+	val = add_symbol(val,l);
 	val = add_number(val,strlen(car(lst)));
 	val = add_number(val,SIZE);
   }

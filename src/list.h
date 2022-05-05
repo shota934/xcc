@@ -77,6 +77,7 @@ struct list_t {
 #define IS_INTEGER(l) (l->type == INTEGER)
 #define IS_DECIMAL(l) (l->type == DECIMAL)
 #define IS_OBJECT(l)  (l->type == OBJECT)
+#define IS_STRING_OBJ(l)  (l->type == STRING)
 
 list_t *make_null();
 void *car(list_t *lst);
