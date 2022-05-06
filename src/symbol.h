@@ -14,6 +14,7 @@
 #define SYMBOL_SET_SIZE(s,si)  s->size = si
 #define SYMBOL_SET_TYPE_LST(s,l) s->type_lst = l
 #define SYMBOL_SET_SCOPE(s,sc) s->obj.scope = sc
+#define SYMBOL_SET_SYM_NAME(s,n) s->name = n
 
 #define SYMBOL_GET_OFFSET(s)    s->offset
 #define SYMBOL_GET_SIZE(s)      s->size
@@ -23,6 +24,7 @@
 #define SYMBOL_GET_SCOPE(s) s->obj.scope
 #define SYMBOL_GET_RET_LST(s) s->func.ret_type
 #define SYMBOL_GET_SYM_TYPE(s) s->type
+#define SYMBOL_GET_SYM_NAME(s) s->name
 
 struct symbol_t {
   object_t obj;
@@ -31,6 +33,7 @@ struct symbol_t {
   int offset;
   int size;
   env_t *env;
+  string_t name;
   union {
 	list_t *ret_type;
   } func;

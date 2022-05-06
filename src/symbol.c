@@ -21,6 +21,7 @@ symbol_t *create_symbol(list_t *lst){
   sym->size = 0;
   sym->offset = 0;
   sym->type_lst = lst;
+  sym->name = NULL;
   sym->func.ret_type = get_ret_type(lst);
   
   return sym;

@@ -142,7 +142,7 @@ static list_t *gen_return(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_block(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_assign_inst(gen_info_t *gi,list_t *lst);
-static list_t *gen_assign_static_inst(gen_info_t *gi,list_t *lst);
+static list_t *gen_assign_static_inst(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_assign_static_struct_inst(gen_info_t *gi,list_t *lst);
 static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym);
 static list_t *gen_static_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym,string_t name);
@@ -752,6 +752,7 @@ static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,
 		EMIT(gi,".local\t%s",name);
 		EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
 	  }
+	  SYMBOL_SET_SYM_NAME(sym,name);
 	  insert_obj(env,name,sym);
 	  val = add_symbol(make_null(),name);
 	} else {
@@ -760,6 +761,7 @@ static list_t *gen_global_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,
 	  if(!is_extern){
 		EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
 	  }
+	  SYMBOL_SET_SYM_NAME(sym,name);
 	  insert_obj(env,name,sym);
 	  val = add_symbol(make_null(),name);
 	}
@@ -1485,6 +1487,7 @@ static list_t *gen_decl_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   list_t *val;
   symbol_t *sym;
   string_t name;
+  string_t new_name;
 
 #ifdef __DEBUG__
   printf("gen_decl_var\n");
@@ -1494,8 +1497,9 @@ static list_t *gen_decl_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   if(STRCMP(name,STATIC)){
 	name = car(cdr(lst));
 	sym = factory_symbol(gi,env,cenv,cdr(cdr(lst)),STATIC_LOCAL,name);
+	new_name = concat_strs(gi->func_name,name);
+	SYMBOL_SET_SYM_NAME(sym,new_name);
 	insert_obj(env,name,sym);
-	name = concat_strs(gi->func_name,name);
 	val = cons(make_null(),sym);
 	val = add_symbol(val,name);
 	val = add_symbol(val,STATIC);
@@ -1570,7 +1574,7 @@ static list_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	if(length_of_list(l) == 4){
 	  val = gen_assign_static_struct_inst(gi,cdr(l));
 	} else {
-	  val = gen_assign_static_inst(gi,cdr(l));
+	  val = gen_assign_static_inst(gi,env,cenv,cdr(l));
 	}
   } else {
 	val = gen_assign_inst(gi,l);
@@ -1625,7 +1629,7 @@ static list_t *gen_assign_inst(gen_info_t *gi,list_t *lst){
   return val;
 }
 
-static list_t *gen_assign_static_inst(gen_info_t *gi,list_t *lst){
+static list_t *gen_assign_static_inst(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   list_t *val;
   string_t inst;
@@ -1643,14 +1647,21 @@ static list_t *gen_assign_static_inst(gen_info_t *gi,list_t *lst){
   size = SYMBOL_GET_SIZE(sym);
   val = make_null();
   name = car(car(lst));
-  if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
-	inst = select_inst_fp(size);
-	reg = "xmm8";
-	EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
-  } else {
+  if(STRCMP(ARRAY,car(cdr(cdr(car(lst)))))){
+	size = select_size(gi,env,cenv,make_null(),SYMBOL_GET_TYPE_LST(sym),TRUE);
 	inst = select_inst(size);
 	reg = select_reg(size);
-	EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
+	EMIT(gi,"%s #%s,(#rcx)",inst,reg,name);
+  } else {
+	if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
+	  inst = select_inst_fp(size);
+	  reg = "xmm8";
+	  EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
+	} else {
+	  inst = select_inst(size);
+	  reg = select_reg(size);
+	  EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
+	}
   }
 
   return val;
@@ -1713,7 +1724,6 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
 		ASSIGN_OFF(gi);
 		flg = TRUE;
 	  }
-	  
 	  val = gen_array(gi,env,cenv,lst,sym,FALSE,make_null());
 	  type = conv_type(env,cenv,tail(SYMBOL_GET_TYPE_LST(sym)),lst);
 	  if((type == TYPE_STRUCT)
@@ -1735,13 +1745,22 @@ static list_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *
 	  val = add_symbol(val,POINTER);
 	  val = concat(val,gen_symbol_ptr(gi,env,sym,cdr(lst)));
 	} else {
-	  type_lst = SYMBOL_GET_TYPE_LST(sym);
-	  size = SYMBOL_GET_SIZE(sym);
-	  offset = SYMBOL_GET_OFFSET(sym);
-	  val = add_number(val,conv_type(env,cenv,type_lst,lst));
-	  val = add_number(val,offset);
-	  val = add_number(val,size);
-	  val = add_list(make_null(),val);
+	  switch(SYMBOL_GET_SCOPE(sym)){
+		case GLOBAL:
+		  val = cons(make_null(),sym);
+		  val = add_symbol(val,name);
+		  val = add_symbol(val,GLOBAL_VAR);
+		  val = add_list(make_null(),val);
+		  break;
+	  default:
+		type_lst = SYMBOL_GET_TYPE_LST(sym);
+		size = SYMBOL_GET_SIZE(sym);
+		offset = SYMBOL_GET_OFFSET(sym);
+		val = add_number(val,conv_type(env,cenv,type_lst,lst));
+		val = add_number(val,offset);
+		val = add_number(val,size);
+		val = add_list(make_null(),val);
+	  }
 	}
   }
 
@@ -1758,22 +1777,12 @@ static list_t *gen_static_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,l
   printf("gen_static_complex_symbol\n");
 #endif
 
-  val = make_null();
-  switch(SYMBOL_GET_SCOPE(sym)){
-  case STATIC_LOCAL:	
-	new_name = concat_strs(gi->func_name,name);
-	break;
-  case STATIC_GLOBAL:
-	new_name = name;
-	break;
-  default:
-	break;
-  }
-
+  val = gen_complex_symbol(gi,env,cenv,lst,sym);
+  new_name = SYMBOL_GET_SYM_NAME(sym);
   val = cons(val,sym);
   val = add_symbol(val,new_name);
   val = add_list(make_null(),val);
-  
+
   if(is_compound_type(SYMBOL_GET_TYPE_LST(sym))){
 	val = cons(val,sym);
   }
@@ -2656,6 +2665,11 @@ static list_t *gen_array(gen_info_t *gi,env_t *env, env_t *cenv,list_t *lst,symb
 	  case ARGMENT:
 		EMIT(gi,"movq %d(#rbp),#rax",SYMBOL_GET_OFFSET(sym));
 		break;
+	  case GLOBAL:
+	  case STATIC_LOCAL:
+	  case STATIC_GLOBAL:
+		EMIT(gi,"leaq %s(#rip),#rax",SYMBOL_GET_SYM_NAME(sym));
+		break;
 	  default:
 		break;
 	  }
@@ -3116,10 +3130,7 @@ static list_t *lookup_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   switch(SYMBOL_GET_SCOPE(sym)){
   case GLOBAL:
-	val = cons(make_null(),sym);
-	val = add_symbol(val,name);
-	val = add_symbol(val,GLOBAL_VAR);
-	val = add_list(make_null(),val);
+	val = gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
 	break;
   case STATIC_LOCAL:
   case STATIC_GLOBAL:
@@ -3203,29 +3214,13 @@ static list_t *gen_static_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst
   name = car(lst);
   val = gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
   if(is_compound_type(SYMBOL_GET_TYPE_LST(sym))){
-	switch(SYMBOL_GET_SCOPE(sym)){
-	case STATIC_LOCAL:
-	  new_name = concat_strs(gi->func_name,name);
-	  break;
-	case STATIC_GLOBAL:
-	  new_name = name;
-	  break;
-	}
+	new_name = SYMBOL_GET_SYM_NAME(sym);
 	val = add_symbol(val,new_name);
 	val = cons(val,sym);
 	val = add_symbol(val,STATIC);
   } else {
 	if(!IS_OBJECT(val)){
-	  switch(SYMBOL_GET_SCOPE(sym)){
-	  case STATIC_LOCAL:
-		new_name = concat_strs(gi->func_name,name);
-		break;
-	  case STATIC_GLOBAL:
-		new_name = name;
-		break;
-	  default:
-		break;
-	  }
+	  new_name = SYMBOL_GET_SYM_NAME(sym);
 	  val = gen_load_static_inst(gi,val,FALSE,sym,new_name);
 	}
   }
@@ -3328,7 +3323,12 @@ static list_t *gen_load_static_inst(gen_info_t *gi,list_t *lst,bool_t flg,symbol
 #endif
   
   val = make_null();
-  if(is_value(lst)){
+  if(is_array(lst)){
+	size = *(integer_t *)car(cdr(lst));
+	inst = select_inst(size);
+	reg = select_reg(size);
+	EMIT(gi,"%s (#rcx),#%s",inst,reg);
+  } else if(is_value(lst)){
 	size = *(integer_t *)car(car(lst));
 	type = get_type(car(lst));
 	if((type == TYPE_FLOAT)
@@ -3426,20 +3426,26 @@ static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst
 	val = add_number(val,FUNC_POINTER_SIZE);
   } else if(is_symbol(obj)){
 	sym = (symbol_t *)obj;
-	size = SYMBOL_GET_SIZE(sym);
-	if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
-	  op = select_inst_fp(size);
-	  reg = "xmm8";
-	  EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
-	  if(size == 4){
-		EMIT(gi,"cvtss2sd #xmm8, #xmm8");
-	  }
+	val = gen_complex_symbol(gi,env,cenv,cdr(lst),sym);
+	name = (string_t)car(val);
+	if(STRCMP(ARRAY,name)){
+	  EMIT(gi,"movq (#rcx), #rax");
 	} else {
-	  op = select_inst(size);
-	  reg = select_reg(size);
-	  EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
+	  size = SYMBOL_GET_SIZE(sym);
+	  if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
+		op = select_inst_fp(size);
+		reg = "xmm8";
+		EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
+		if(size == 4){
+		  EMIT(gi,"cvtss2sd #xmm8, #xmm8");
+		}
+	  } else {
+		op = select_inst(size);
+		reg = select_reg(size);
+		EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
+	  }
+	  val = add_number(make_null(),size);
 	}
-	val = add_number(make_null(),size);
   }
 
   return val;
