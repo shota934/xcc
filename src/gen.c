@@ -141,7 +141,7 @@ static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *ls
 list_t *get_var_name(list_t *lst);
 static symbol_t *factory_member(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,integer_t offset,string_t name);
 static void gen_static_var(gen_info_t *gi);
-static void gen_static_value(gen_info_t *gi,list_t *lst,symbol_t *sym);
+static void gen_static_and_global_value(gen_info_t *gi,list_t *lst,symbol_t *sym);
 static object_t *gen_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_decl_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_return(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -150,7 +150,7 @@ static object_t *gen_lhs(gen_info_t *gi,object_t *lhs,list_t *lst);
 static object_t *gen_block(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,bool_t flg,symbol_t *sym);
 static void gen_assign_inst(gen_info_t *gi,object_t *obj);
-static void gen_assign_static_inst(gen_info_t *gi,symbol_t *sym);
+static void gen_assign_static_and_global_inst(gen_info_t *gi,symbol_t *sym);
 static list_t *gen_assign_static_struct_inst(gen_info_t *gi,list_t *lst);
 static list_t *gen_symbol_var(gen_info_t *gi,env_t *env,env_t *cenv,symbol_t *sym,list_t *lst);
 static object_t *gen_call(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -789,7 +789,7 @@ static object_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,lis
 	  gen_global_compound_members(gi,env,cenv,cdr(car(cdr(lst))),sym);
 	} else {
 	  val = eval(INFO_GET_ENV(gi),car(cdr(lst)));
-	  gen_static_value(gi,val,sym);
+	  gen_static_and_global_value(gi,val,sym);
 	}
 	insert_obj(env,name,sym);
   } else {
@@ -797,7 +797,8 @@ static object_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,lis
 	EMIT(gi,".data 0");
 	EMIT_NO_INDENT(gi,".global %s",name);
 	EMIT_NO_INDENT(gi,"%s:",name);
-	EMIT(gi,".%s\t%d",select_size_type(SYMBOL_GET_SIZE(sym)),*(integer_t *)car(cdr(lst)));
+	val = eval(INFO_GET_ENV(gi),car(cdr(lst)));
+	gen_static_and_global_value(gi,val,sym);
 	insert_obj(env,name,sym);
   }
 
@@ -1346,13 +1347,13 @@ static void gen_static_var(gen_info_t *gi){
 	EMIT(gi,".data\t%d",0);
 	EMIT_NO_INDENT(gi,"%s:",name);
 	val = eval(INFO_GET_ENV(gi),car(cdr(q)));
-	gen_static_value(gi,val,sym);
+	gen_static_and_global_value(gi,val,sym);
   }
 
   return;
 }
 
-static void gen_static_value(gen_info_t *gi,list_t *lst,symbol_t *sym){
+static void gen_static_and_global_value(gen_info_t *gi,list_t *lst,symbol_t *sym){
 
   switch(LIST_GET_TYPE(lst)){
   case INTEGER:
@@ -1529,7 +1530,8 @@ static object_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	switch(SYMBOL_GET_SCOPE(sym)){
 	case STATIC_LOCAL:
 	case STATIC_GLOBAL:
-	  gen_assign_static_inst(gi,sym);
+	case GLOBAL:
+	  gen_assign_static_and_global_inst(gi,sym);
 	  break;
 	default:
 	  gen_assign_inst(gi,l);
@@ -1685,7 +1687,7 @@ static void gen_assign_inst(gen_info_t *gi,object_t *obj){
   return;
 }
 
-static void gen_assign_static_inst(gen_info_t *gi,symbol_t *sym){
+static void gen_assign_static_and_global_inst(gen_info_t *gi,symbol_t *sym){
 
   string_t inst;
   string_t reg;
@@ -1693,11 +1695,20 @@ static void gen_assign_static_inst(gen_info_t *gi,symbol_t *sym){
   integer_t size;
   
 #ifdef __DEBUG__
-  printf("gen_assign_static_inst\n");
+  printf("gen_assign_static_and_global_inst\n");
 #endif
 
   size = SYMBOL_GET_SIZE(sym);
-  name = SYMBOL_GET_STATIC_VAR(sym);
+  switch(SYMBOL_GET_SCOPE(sym)){
+  case GLOBAL:
+	name = SYMBOL_GET_NAME(sym);
+	break;
+  case STATIC_LOCAL:
+  case STATIC_GLOBAL:
+	name = SYMBOL_GET_STATIC_VAR(sym);
+	break;
+  }
+
   if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
 	inst = select_inst_fp(size);
 	reg = "xmm8";
@@ -3011,13 +3022,6 @@ static object_t *lookup_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst
 
   switch(SYMBOL_GET_SCOPE(sym)){
   case GLOBAL:
-	val = cons(make_null(),sym);
-	val = add_symbol(val,name);
-	val = add_symbol(val,GLOBAL_VAR);
-	val = add_list(make_null(),val);
-	break;
-  case STATIC_LOCAL:
-  case STATIC_GLOBAL:
 	return (object_t *)sym;
 	break;
   default:
