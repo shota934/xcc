@@ -33,9 +33,8 @@ struct gen_info_t {
   int no_name_label_no;
   set_t *set;
   bool_t eval_type;
-  list_t *lhs_type;
+  symbol_t *lhs_type;
   int offset_onstack;
-  type_t assign_type;
   int int_regs;
   int float_regs;
   int num_of_gp;
@@ -46,7 +45,7 @@ struct gen_info_t {
 };
 
 gen_info_t *create_gen_info();
-list_t *gen(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
+integer_t gen(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 void delete_gen_info(gen_info_t *gi);
 void init_stack_pos(gen_info_t *gi);
 

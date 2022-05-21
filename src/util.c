@@ -12,6 +12,8 @@
 #include "inst.inc"
 #include "dump.h"
 #include "symbol.h"
+#include "value.h"
+#include "ope.h"
 #include "env.h"
 #include "compound_type.h"
 
@@ -50,10 +52,6 @@ bool_t is_inttype(list_t *lst){
   return FALSE;
 }
 
-type_t util_get_type(list_t *lst){
-  return (*(type_t *)car(cdr(cdr(lst))));
-}
-
 bool_t is_float(list_t *lst){
 
   string_t type;
@@ -67,15 +65,6 @@ bool_t is_float(list_t *lst){
   return FALSE;
 }
 
-bool_t is_struct(symbol_t *sym){
-
-  if(!sym){
-    return FALSE;
-  }
-
-  return TYPE_STRUCT == SYMBOL_GET_TYPE(sym);
-}
-
 bool_t is_pointer(list_t *lst){
   
   if(!IS_SYMBOL(lst)){
@@ -85,6 +74,7 @@ bool_t is_pointer(list_t *lst){
   return STRCMP(car(lst),"*");
 }
 
+
 bool_t is_address(list_t *lst){
   
    if(!IS_SYMBOL(lst)){
@@ -92,28 +82,6 @@ bool_t is_address(list_t *lst){
   }
 
   return STRCMP(car(lst),"&");
-}
-
-bool_t is_struct_ref(list_t *lst){
-
-  if(!IS_SYMBOL(lst)){
-    return FALSE;
-  }
-
-  return STRCMP(car(lst),REF_MEMBER_ACCESS);
-}
-
-bool_t is_deref(list_t *lst){
-
-  if(!IS_SYMBOL(lst)){
-    return FALSE;
-  }
-  
-  return STRCMP(car(lst),"*");
-}
-
-bool_t is_nedd_cast(list_t *lst){
-  return *(kind_t *)car(lst) == KIND_VARIABLE;
 }
 
 bool_t is_func(object_t *obj){
@@ -135,23 +103,6 @@ bool_t is_array(list_t *lst){
   }
 
   return FALSE;
-}
-
-bool_t is_value(list_t *lst){
-  return IS_LIST(lst);
-}
-
-bool_t is_name(list_t *lst){
-
-  if(!IS_SYMBOL(lst)){
-	return FALSE;
-  }
-
-  if(is_array(lst) || is_pointer(lst) || is_struct_ref(lst)){
-	return FALSE;
-  } else {
-	return TRUE;
-  }
 }
 
 bool_t is_integer_type(env_t *env,list_t *lst){
@@ -337,6 +288,8 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 	  return TYPE_STRUCT;
 	} else if(STRCMP(name,UNION)){
 	  return TYPE_UNION;
+	} else if(STRCMP(name,COMP_DEF)){
+	  return conv_type(env,cenv,car(cdr(car(cdr(type_lst)))),lst);
 	} else if(STRCMP(name,ARRAY)){
 	  if(IS_NULL_LIST(lst)){
 		return TYPE_ARRAY;
@@ -349,6 +302,7 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 	  }
 
 	  if(!sym){
+		printf("name : %s\n",name);
 		exit(1);
 	  }
 
@@ -358,9 +312,9 @@ type_t conv_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 	  case TYPE_FUNCTION:
 		return TYPE_FUNC;
 	  default:
-		switch(SYMBOL_GET_SYM_TYPE(sym)){
+		switch(SYMBOL_GET_TYPE(sym)){
 		case TYPE_ENUM:
-		  return SYMBOL_GET_SYM_TYPE(sym);
+		  return SYMBOL_GET_TYPE(sym);
 		  break;
 		case TYPE_TYPE:
 		  com = lookup_obj(cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
@@ -487,7 +441,7 @@ compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
 	switch(OBJ_GET_TYPE(obj)){
 	case TYPE_SYMBOL:
 	  sym = (symbol_t *)obj;
-	  switch(SYMBOL_GET_SYM_TYPE(sym)){
+	  switch(SYMBOL_GET_TYPE(sym)){
 	  case TYPE_TYPE:
 		l = tail(SYMBOL_GET_TYPE_LST(sym));
 		if(IS_NULL_LIST(l)){
@@ -509,7 +463,7 @@ compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
 	switch(OBJ_GET_TYPE(obj)){
 	case TYPE_SYMBOL:
 	  sym = (symbol_t *)obj;
-	  switch(SYMBOL_GET_SYM_TYPE(sym)){
+	  switch(SYMBOL_GET_TYPE(sym)){
 	  case TYPE_TYPE:
 		l = tail(SYMBOL_GET_TYPE_LST(sym));
 		if(IS_NULL_LIST(l)){
@@ -522,7 +476,8 @@ compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name){
 	  }
 	}
   }
-  exit(1);
+
+  return NULL;
 }
 
 string_t concat_strs(string_t s1,string_t s2){
@@ -537,4 +492,23 @@ string_t concat_strs(string_t s1,string_t s2){
   strcat(s3,s2);
 
   return s3;
+}
+
+int get_obj_size(object_t *obj){
+
+  int size;
+  switch(OBJ_GET_TYPE(obj)){
+  case TYPE_VALUE:
+	size = ((value_t *)obj)->size;
+	break;
+  case TYPE_SYMBOL:
+	size = ((symbol_t *)obj)->size;
+	break;
+  case TYPE_OPE:
+	size = ((operator_t *)obj)->size;
+  default:
+	break;
+  }
+
+  return size;
 }

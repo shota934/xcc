@@ -10,6 +10,7 @@ typedef struct list_t list_t;
 typedef enum list_type_t list_type_t;
 typedef enum opt_type_t opt_type_t;
 typedef enum object_type_t object_type_t;
+typedef enum operation_t operation_t;
 typedef struct env_t env_t;
 typedef struct file_t file_t;
 typedef struct token_t token_t;
@@ -17,6 +18,7 @@ typedef enum token_type_t token_type_t;
 typedef char * string_t;
 typedef unsigned char bool_t;
 typedef int integer_t;
+typedef long int integer64_t;
 typedef struct macro_t macro_t;
 typedef struct lexer_t lexer_t;
 typedef struct compound_def_t compound_def_t;
@@ -26,7 +28,6 @@ typedef struct opt_info_t opt_info_t;
 typedef struct enum_env_t enum_env_t;
 typedef enum type_t type_t;
 typedef enum scope_t scope_t;
-typedef enum kind_t kind_t;
 typedef enum access_type access_type;
 typedef enum macro_type_t macro_type_t;
 typedef struct struct_obj_t struct_obj_t;
@@ -43,12 +44,8 @@ typedef struct func_t func_t;
 typedef struct object_t object_t;
 typedef struct enumdef_t enumdef_t;
 typedef struct sema_t sema_t;
-
-enum kind_t {
-  KIND_VARIABLE,
-  KIND_ENUM,
-  KIND_POINTER,
-};
+typedef struct value_t value_t;
+typedef struct operator_t operator_t;
 
 enum type_t {
   TYPE_INT,
@@ -69,6 +66,9 @@ enum type_t {
   TYPE_ARRAY,
   TYPE_VOID,
   TYPE_FUNC,
+  TYPE_ADDRESS,
+  TYPE_STATIC,
+  TYPE_GLOBAL,
   TYPE_UNKNOWN
 };
 
@@ -96,12 +96,22 @@ enum type_type_t {
   TYPE_SYMBOL,
   TYPE_COMPOUND,
   TYPE_ENUMULATE,
+  TYPE_VALUE,
+  TYPE_OPE
 };
 
 enum compound_type_t {
   STRUCT_COMPOUND_TYPE,
   UNION_COMPOUND_TYPE,
   OTHER_COMPOUND_TYPE
+};
+
+enum operation_t {
+    OPERATION_DEFINISION,
+	OPERATION_POINTER,
+	OPERATION_ADDRESS,
+    OPERATION_MEMBER_ACCESS,
+	OPERATION_MEMBER_REFERENCE
 };
 
 

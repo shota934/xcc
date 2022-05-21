@@ -3,11 +3,13 @@
 //  Copyright 2019 Shota Hisai. Released under the MIT license.
 //
 //
+#include <stdio.h>
 #include "symbol.h"
 #include "mem.h"
 #include "common.h"
 #include "list.h"
 #include "dump.h"
+#include "tych.h"
 
 #define FUNC "FUNC"
 
@@ -18,6 +20,7 @@ symbol_t *create_symbol(list_t *lst){
   sym = mem(sizeof(symbol_t));
   sym->obj.type = TYPE_SYMBOL;
   sym->obj.scope = UNDEFINED;
+  sym->obj.next = NULL;
   sym->size = 0;
   sym->offset = 0;
   sym->type_lst = lst;

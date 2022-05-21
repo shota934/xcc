@@ -1393,6 +1393,14 @@ static list_t *parser_parse_factor(parser_t *parser){
 	}
   }
 
+  if(IS_NULL_LIST(new_lst)){
+	return new_lst;
+  }
+
+  if(!IS_LIST(new_lst)){
+	new_lst = add_list(make_null(),new_lst);
+  }
+
   return new_lst;
 }
 

@@ -2,7 +2,7 @@ CC=gcc
 OPT=-c
 CFLAGS=-g
 
-OBJS= main.o parser.o list.o lex.o mem.o dump.o file.o gen.o env.o util.o error.o cpp.o optinfo.o symbol.o compound_type.o stack.o com.o srcinfo.o set.o map.o macro.o func.o tych.o enumdef.o sema.o
+OBJS= main.o parser.o list.o lex.o mem.o dump.o file.o gen.o env.o util.o error.o cpp.o optinfo.o symbol.o compound_type.o stack.o com.o srcinfo.o set.o map.o macro.o func.o tych.o enumdef.o sema.o value.o ope.o obj.o
 TARGET=xcc
 
 xcc: ${OBJS}
@@ -85,6 +85,15 @@ enumdef.o : enumdef.c
 
 sema.o : sema.c
 	${CC} ${OPT} ${CFLAGS} sema.c
+
+value.o : value.c
+	${CC} ${OPT} ${CFLAGS} value.c
+
+obj.o : obj.c
+	${CC} ${OPT} ${CFLAGS} obj.c
+
+ope.o : ope.c
+	${CC} ${OPT} ${CFLAGS} ope.c
 
 test: xcc
 	./test.sh

@@ -14,15 +14,20 @@
 #define SYMBOL_SET_SIZE(s,si)  s->size = si
 #define SYMBOL_SET_TYPE_LST(s,l) s->type_lst = l
 #define SYMBOL_SET_SCOPE(s,sc) s->obj.scope = sc
+#define SYMBOL_SET_NAME(s,n) s->name = n
+#define SYMBOL_SET_ARRAY_TYPE(s,t)  s->array.type = t;
 
 #define SYMBOL_GET_OFFSET(s)    s->offset
 #define SYMBOL_GET_SIZE(s)      s->size
 
-#define SYMBOL_GET_TYPE(s)  s->obj.type
+#define SYMBOL_GET_TYPE(s)  s->type
 #define SYMBOL_GET_TYPE_LST(s)  s->type_lst
 #define SYMBOL_GET_SCOPE(s) s->obj.scope
 #define SYMBOL_GET_RET_LST(s) s->func.ret_type
-#define SYMBOL_GET_SYM_TYPE(s) s->type
+#define SYMBOL_GET_NAME(s) s->name
+#define SYMBOL_GET_ARRAY_TYPE(s)  s->array.type
+#define SYMBOL_SET_STATIC_VAR(s,n) s->static_var.name = n
+#define SYMBOL_GET_STATIC_VAR(s)   s->static_var.name
 
 struct symbol_t {
   object_t obj;
@@ -31,9 +36,18 @@ struct symbol_t {
   int offset;
   int size;
   env_t *env;
-  union {
+  string_t name;
+  struct {
 	list_t *ret_type;
   } func;
+
+  struct {
+	type_t type;
+  } array;
+
+  struct {
+	string_t name;
+  } static_var;
 };
 
 symbol_t *create_symbol(list_t *lst);
