@@ -49,7 +49,7 @@ struct list_t {
     } symbol;
 
     struct {
-      char *text;
+      string_t text;
       int len;
     } string;
 

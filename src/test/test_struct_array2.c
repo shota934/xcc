@@ -1,4 +1,4 @@
-//#include <stdio.h>
+#include <stdio.h>
 
 #define N 70
 
@@ -24,8 +24,8 @@ int func(){
   sams[0].sam1[2].d = 50;
 
   d = sams[0].a + sams[0].sam1[2].d;
-
-  //printf("%d\n",d);
+  
+  printf("%d\n",d);
   
   return d;
 }

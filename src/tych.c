@@ -468,7 +468,7 @@ static type_t analyze_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
   } else {
 	sym = lookup_obj(env,name);
 	if(sym){
-	  switch(SYMBOL_GET_SYM_TYPE(sym)){
+	  switch(SYMBOL_GET_TYPE(sym)){
 	  case TYPE_ENUM:
 		return analyze_utype(lst,TYPE_ENUM);
 		break;
@@ -476,7 +476,7 @@ static type_t analyze_type(env_t *env,env_t *cenv,list_t *type_lst,list_t *lst){
 		return analyze_type(env,cenv,SYMBOL_GET_TYPE_LST(sym),make_null());
 		break;
 	  default:
-		printf("Unknown type : %d\n",SYMBOL_GET_SYM_TYPE(sym));
+		printf("unknown type : %d\n",SYMBOL_GET_TYPE(sym));
 		break;
 	  }
 	}

@@ -13,20 +13,13 @@
 
 int hash(char *str);
 bool_t is_inttype(list_t *lst);
-type_t util_get_type(list_t *lst);
 bool_t is_float(list_t *lst);
 bool_t is_pointer(list_t *lst);
 bool_t is_address(list_t *lst);
-bool_t is_deref(list_t *lst);
-bool_t is_structtype(list_t *lst);
-bool_t is_nedd_cast(list_t *lst);
 bool_t is_function_pointer(list_t *lst);
 bool_t is_func(object_t *obj);
 bool_t is_symbol(object_t *obj);
 bool_t is_array(list_t *lst);
-bool_t is_value(list_t *lst);
-bool_t is_name(list_t *lst);
-bool_t is_struct_ref(list_t *lst);
 bool_t is_integer_type(env_t *env,list_t *lst);
 int calc_align(int n,int m);
 bool_t is_extern(list_t *lst);
@@ -43,5 +36,6 @@ bool_t is_compound_type(list_t *lst);
 bool_t is_global_var(list_t *lst);
 compound_def_t *get_comp_obj(env_t *env,env_t *cenv,string_t name);
 string_t concat_strs(string_t s1,string_t s2);
+int get_obj_size(object_t *obj);
 
 #endif
