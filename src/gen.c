@@ -83,7 +83,6 @@ char *FLOAT_REGS[] = {"xmm0","xmm1","xmm2","xmm3","xmm4","xmm5","xmm6","xmm7"};
 #define INFO_SET_MAP(gi,m)               gi->map = map
 #define INFO_GET_MAP(gi)                 gi->map
 #define GET_LABEL(gi)   gi->label
-#define INFO_GET_ENV(gi) gi->env
 
 static bool_t is_arg(list_t *lst);
 static list_t *get_args(list_t *lst);
@@ -140,8 +139,8 @@ static integer_t gen_loacl_int(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst
 static symbol_t *factory_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,scope_t scope,string_t name);
 list_t *get_var_name(list_t *lst);
 static symbol_t *factory_member(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,integer_t offset,string_t name);
-static void gen_static_var(gen_info_t *gi);
-static void gen_static_and_global_value(gen_info_t *gi,list_t *lst,symbol_t *sym);
+static void gen_static_var(gen_info_t *gi,env_t *env);
+static void gen_static_or_global_value(gen_info_t *gi,list_t *lst,symbol_t *sym);
 static object_t *gen_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_decl_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_return(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -149,6 +148,7 @@ static object_t *gen_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_lhs(gen_info_t *gi,object_t *lhs,list_t *lst);
 static object_t *gen_block(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,bool_t flg,symbol_t *sym);
+static object_t *gen_complex_global_or_static_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,bool_t flg,symbol_t *sym);
 static void gen_assign_inst(gen_info_t *gi,object_t *obj);
 static void gen_assign_static_and_global_inst(gen_info_t *gi,symbol_t *sym);
 static list_t *gen_assign_static_struct_inst(gen_info_t *gi,list_t *lst);
@@ -206,7 +206,8 @@ static object_t *gen_static_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *l
 
 static object_t *gen_load_inst(gen_info_t *gi,env_t *env,env_t *cenv,bool_t flg,list_t *lst,symbol_t *sym);
 static object_t *gen_load_static_inst(gen_info_t *gi,symbol_t *sym);
-static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj);
+static object_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj);
+static object_t *gen_global_load_inst(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj,bool_t flg);
 static object_t *gen_enum_load(gen_info_t *gi,enumdef_t *enumdef);
 
 static integer_t gen_func_parms_size(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -290,7 +291,7 @@ static bool_t is_need_padding(gen_info_t *gi);
 static bool_t is_unary(list_t *lst);
 static bool_t is_srcfile(gen_info_t *gi,list_t *lst);
 static bool_t is_compound_proto_type(gen_info_t *gi,list_t *lst);
-static func_t *make_func(list_t *lst,scope_t scope);
+static func_t *make_func(list_t *lst,scope_t scope,string_t name);
 static object_t *gen_typedef(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static integer_t get_offset(object_t *obj);
 static string_t make_label(gen_info_t *gi);
@@ -366,7 +367,6 @@ gen_info_t *create_gen_info(){
   gi->num_of_gp = 0;
   gi->num_of_fp = 0;
   gi->func_name = NULL;
-  gi->env = make_env();
   map = map_create();
   INFO_SET_MAP(gi,map);
   gi->lst_of_sv = make_null();
@@ -441,7 +441,7 @@ integer_t gen(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	l = cdr(l);
   }
 
-  gen_static_var(gi);
+  gen_static_var(gi,env);
 
   return 0;
 }
@@ -690,7 +690,7 @@ static object_t *gen_funcdecl(gen_info_t *gi,env_t *env,list_t *lst){
 	exit(1);
   }
 
-  func = create_func(get_args(p),get_ret(p),UNDEFINED);
+  func = create_func(get_args(p),get_ret(p),UNDEFINED,name);
   insert_obj(env,name,func);
 
   return (object_t *)obj;
@@ -769,6 +769,7 @@ static object_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,lis
   string_t name;
   symbol_t *sym;
   list_t *val;
+  list_t *l;
 
 #ifdef __DEBUG__
   printf("gen_assign_global_var\n");
@@ -788,8 +789,14 @@ static object_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,lis
 	if(is_compound_type(SYMBOL_GET_TYPE_LST(sym))){
 	  gen_global_compound_members(gi,env,cenv,cdr(car(cdr(lst))),sym);
 	} else {
-	  val = eval(INFO_GET_ENV(gi),car(cdr(lst)));
-	  gen_static_and_global_value(gi,val,sym);
+	  l = car(cdr(lst));
+	  val = eval(env,l);
+	  if(IS_NULL_LIST(val)){
+		dump_ast(l);
+		error(LIST_GET_SYMBOL_LINE_NO(l),LIST_GET_SYMBOL_SRC(l),"initializer element is not constant");
+	  } else {
+		gen_static_or_global_value(gi,val,sym);
+	  }
 	}
 	insert_obj(env,name,sym);
   } else {
@@ -797,8 +804,13 @@ static object_t *gen_assign_global_var(gen_info_t *gi,env_t *env,env_t *cenv,lis
 	EMIT(gi,".data 0");
 	EMIT_NO_INDENT(gi,".global %s",name);
 	EMIT_NO_INDENT(gi,"%s:",name);
-	val = eval(INFO_GET_ENV(gi),car(cdr(lst)));
-	gen_static_and_global_value(gi,val,sym);
+	l = car(cdr(lst));
+	val = eval(env,l);
+	if(IS_NULL_LIST(val)){
+	  error(LIST_GET_SYMBOL_LINE_NO(l),LIST_GET_SYMBOL_SRC(l),"initializer element is not constant");
+	} else {
+	  gen_static_or_global_value(gi,val,sym);
+	}
 	insert_obj(env,name,sym);
   }
 
@@ -881,7 +893,7 @@ static object_t *gen_function(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,
 
   push(gi,"rbp");
   EMIT(gi,"movq #rsp, #rbp");
-  func = make_func(lst,GLOBAL);
+  func = make_func(lst,GLOBAL,name);
   gen_args(gi,env,cenv,get_args(lst),func);
   gen_local_vars(gi,env,cenv,get_local_vars(lst));
   if(gen_info_get_no_align_localarea(gi)){
@@ -1326,7 +1338,7 @@ static symbol_t *factory_member(gen_info_t *gi,env_t *env,env_t *cenv,list_t *ls
   return sym;
 }
 
-static void gen_static_var(gen_info_t *gi){
+static void gen_static_var(gen_info_t *gi,env_t *env){
 
   list_t *p;
   list_t *q;
@@ -1346,18 +1358,25 @@ static void gen_static_var(gen_info_t *gi){
 	name = SYMBOL_GET_STATIC_VAR(sym);
 	EMIT(gi,".data\t%d",0);
 	EMIT_NO_INDENT(gi,"%s:",name);
-	val = eval(INFO_GET_ENV(gi),car(cdr(q)));
-	gen_static_and_global_value(gi,val,sym);
+	val = eval(env,car(cdr(q)));
+	gen_static_or_global_value(gi,val,sym);
   }
 
   return;
 }
 
-static void gen_static_and_global_value(gen_info_t *gi,list_t *lst,symbol_t *sym){
+static void gen_static_or_global_value(gen_info_t *gi,list_t *lst,symbol_t *sym){
+
+#ifdef __DEBUG__
+  printf("gen_static_or_global_value\n");
+#endif
 
   switch(LIST_GET_TYPE(lst)){
   case INTEGER:
 	EMIT(gi,".%s\t%d",select_size_type(SYMBOL_GET_SIZE(sym)),*(integer_t *)car(lst));
+	break;
+  case SYMBOL:
+	EMIT(gi,".%s\t%s",select_size_type(SYMBOL_GET_SIZE(sym)),(string_t *)car(lst));
 	break;
   default:
 	break;
@@ -1619,6 +1638,23 @@ static object_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t
 	  return (object_t *)sym;
 	}
 	return obj;
+  } else {
+	return (object_t *)sym;
+  }
+}
+
+static object_t *gen_complex_global_or_static_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,bool_t flg,symbol_t *sym){
+
+#ifdef __DEBUG__
+  printf("gen_complex_global_or_static_symbol\n");
+#endif
+
+  if(IS_NULL_LIST(lst) && flg){
+	return NULL;
+  }
+
+  if(is_pointer(lst)){
+
   } else {
 	return (object_t *)sym;
   }
@@ -3022,7 +3058,7 @@ static object_t *lookup_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst
 
   switch(SYMBOL_GET_SCOPE(sym)){
   case GLOBAL:
-	return (object_t *)sym;
+	return gen_complex_global_or_static_symbol(gi,env,cenv,cdr(lst),FALSE,sym);
 	break;
   default:
 	return gen_complex_symbol(gi,env,cenv,cdr(lst),FALSE,sym);
@@ -3055,7 +3091,7 @@ static object_t *gen_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	obj = gen_local_load(gi,env,cenv,lst,(symbol_t *)obj);
 	break;
   case GLOBAL:
-	val = gen_global_load(gi,env,cenv,lst,obj);
+	obj = gen_global_load(gi,env,cenv,lst,obj);
 	break;
   case STATIC_LOCAL:
   case STATIC_GLOBAL:
@@ -3099,7 +3135,6 @@ static object_t *gen_static_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *l
 
 static object_t *gen_load_inst(gen_info_t *gi,env_t *env,env_t *cenv,bool_t flg,list_t *lst,symbol_t *sym){
 
-  list_t *val;
   string_t inst;
   string_t reg;
   object_t *obj;
@@ -3276,43 +3311,75 @@ static object_t *gen_load_unary(gen_info_t *gi,list_t *lst){
   }
 }
 
-static list_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj){
-
-  list_t *val;
-  string_t name;
-  symbol_t *sym;
-  string_t op;
-  string_t reg;
-  integer_t size;
+static object_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj){
 
 #ifdef __DEBUG__
   printf("gen_global_load\n");
 #endif
 
-  name = (string_t)car(lst);
-  if(is_func(obj)){
-	EMIT(gi,"leaq %s(#rip),#rax",name);
-	val = add_symbol(make_null(),FUNC);
-	val = add_number(val,FUNC_POINTER_SIZE);
-  } else if(is_symbol(obj)){
-	sym = (symbol_t *)obj;
-	size = SYMBOL_GET_SIZE(sym);
-	if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
-	  op = select_inst_fp(size);
-	  reg = "xmm8";
-	  EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
-	  if(size == 4){
-		EMIT(gi,"cvtss2sd #xmm8, #xmm8");
-	  }
-	} else {
-	  op = select_inst(size);
-	  reg = select_reg(size);
-	  EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
+  return gen_global_load_inst(gi,env,cenv,cdr(lst),obj,FALSE);
+}
+
+
+static object_t *gen_global_load_inst(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj,bool_t flg){
+
+  func_t *func;
+  symbol_t *sym;
+  operator_t *ope;
+  string_t name;
+  string_t op;
+  string_t reg;
+  integer_t size;
+
+#ifdef __DEBUG__
+  printf("gen_global_load_inst\n");
+#endif
+
+  if(IS_NULL_LIST(lst)){
+	if(flg){
+	  return NULL;
 	}
-	val = add_number(make_null(),size);
   }
 
-  return val;
+  if(is_pointer(lst)){
+	sym = (symbol_t *)obj;
+	name = SYMBOL_GET_NAME(sym);
+	if(flg){
+	  EMIT(gi,"movq (#rcx),#rcx");
+	  gen_global_load_inst(gi,env,cenv,cdr(lst),obj,TRUE);
+	} else {
+	  EMIT(gi,"movq %s(#rip), #rcx",name);
+	  gen_global_load_inst(gi,env,cenv,cdr(lst),obj,TRUE);
+	  EMIT(gi,"movq (#rcx),#rax");
+	  ope = create_operator(TYPE_POINTER,SIZE);
+	  return (object_t *)ope;
+	}
+  } else {
+	if(is_func(obj)){
+	  func = (func_t *)obj;
+	  EMIT(gi,"leaq %s(#rip),#rax",FUNC_GET_NAME(func));
+	  return obj;
+	} else if(is_symbol(obj)){
+	  sym = (symbol_t *)obj;
+	  name = SYMBOL_GET_NAME(sym);
+	  size = SYMBOL_GET_SIZE(sym);
+	  if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
+		op = select_inst_fp(size);
+		reg = "xmm8";
+		EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
+		if(size == 4){
+		  EMIT(gi,"cvtss2sd #xmm8, #xmm8");
+		}
+	  } else {
+		op = select_inst(size);
+		reg = select_reg(size);
+		EMIT(gi,"%s %s(#rip), #%s",op,name,reg);
+	  }
+	  return obj;
+	}
+  }
+
+  return obj;
 }
 
 static object_t *gen_enum_load(gen_info_t *gi,enumdef_t *enumdef){
@@ -5607,14 +5674,14 @@ static bool_t is_compound_proto_type(gen_info_t *gi,list_t *lst){
   return FALSE;
 }
 
-static func_t *make_func(list_t *lst,scope_t scope){
+static func_t *make_func(list_t *lst,scope_t scope,string_t name){
 
   func_t *func;
 #ifdef __DEBUG__
   printf("make_func\n");
 #endif
 
-  func = create_func(get_args(lst),get_ret(lst),scope);
+  func = create_func(get_args(lst),get_ret(lst),scope,name);
   return func;
 }
 

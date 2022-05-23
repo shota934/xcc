@@ -5,7 +5,7 @@
 
 static list_t *make_type_list_of_variable(list_t *args);
 
-func_t *create_func(list_t *args,list_t *ret_type,scope_t scope){
+func_t *create_func(list_t *args,list_t *ret_type,scope_t scope,string_t name){
 
   func_t *func;
 
@@ -21,6 +21,7 @@ func_t *create_func(list_t *args,list_t *ret_type,scope_t scope){
   }
   func->ret_type = ret_type;
   func->num_of_args = length_of_list(func->no_var_args);
+  func->name = name;
 
   return func;
 }
