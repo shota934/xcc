@@ -124,6 +124,8 @@ static object_t *gen_operand(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_integer(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_char(gen_info_t *gi,env_t *env,list_t *lst);
 static object_t *gen_string(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
+static type_t gen_symbol_cast(symbol_t *sym);
+static type_t gen_value_cast(value_t *value);
 static object_t *gen_ternary(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_arr_string(gen_info_t *gi,env_t *env,list_t *lst);
 static object_t *gen_floating_point(gen_info_t *gi,env_t *env,list_t *lst);
@@ -198,9 +200,6 @@ static list_t *categorize_type(env_t *env,list_t *lst,bool_t is_no_var);
 
 static object_t *lookup_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
-
-static object_t *gen_load_unary_ref(gen_info_t *gi,list_t *lst);
-static object_t *gen_load_unary(gen_info_t *gi,list_t *lst);
 static object_t *gen_local_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym);
 static object_t *gen_static_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,symbol_t *sym);
 
@@ -241,11 +240,12 @@ static list_t *gen_default(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_cases_stmt(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_break(gen_info_t *gi,env_t *env,list_t *lst);
 static object_t *gen_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
-static list_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,list_t *mem);
+static object_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,list_t *mem);
 static object_t *gen_continue(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_increment(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_increment_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_cast(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
+static integer_t gen_select_cast_type(gen_info_t *gi,type_t src_type,type_t cast_type);
 static char *choose_increment_op(list_t *lst);
 
 static void gen_enum_elements(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,string_t enum_class);
@@ -3259,58 +3259,6 @@ static object_t *gen_load_static_inst(gen_info_t *gi,symbol_t *sym){
   return (object_t *)sym;
 }
 
-static object_t *gen_load_unary_ref(gen_info_t *gi,list_t *lst){
-
-#ifdef __DEBUG__
-  printf("gen_load_unary_ref\n");
-#endif
-
-  if(IS_NULL_LIST(lst)){
-	return NULL;
-  } else {
-	EMIT(gi,"movq (#rcx), #rax");
-	if(is_pointer(lst)){
-	  EMIT(gi,"movq #rax,#rcox");
-	} else if(is_address(lst)){
-	  EMIT(gi,"leaq #rax,#rcx");
-	}
-
-	if(IS_NULL_LIST(cdr(lst))){
-	  if(!IS_ASSIGN(gi)){
-		EMIT(gi,"movq (#rcx), #rax");
-	  }
-	} else {
-	  return gen_load_unary_ref(gi,cdr(lst));
-	}
-  }
-}
-
-static object_t *gen_load_unary(gen_info_t *gi,list_t *lst){
-
-#ifdef __DEBUG__
-  printf("gen_load_unary\n");
-#endif
-
-  if(IS_NULL_LIST(lst)){
-	return NULL;
-  } else {
-	if(is_pointer(lst)){
-	  EMIT(gi,"movq #rax,#rcx");
-	} else if(is_address(lst)){
-	  EMIT(gi,"leaq #rax,#rcx");
-	}
-
-	if(IS_NULL_LIST(cdr(lst))){
-	  if(!IS_ASSIGN(gi)){
-		EMIT(gi,"movq (#rcx), #rax");
-	  }
-	} else {
-	  EMIT(gi,"movq #rcx,#rax");
-	  return gen_load_unary(gi,cdr(lst));
-	}
-  }
-}
-
 static object_t *gen_global_load(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,object_t *obj){
 
 #ifdef __DEBUG__
@@ -3926,20 +3874,16 @@ static object_t *gen_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t 
 	EMIT(gi,"movq %d(#rbp),#rax",offset);
   }
 
-  l = gen_load_unary(gi,cdr(cdr(lst)));
-  if(l){
-	return l;
-  } else {
-	ope = create_operator(TYPE_STRUCT,size);
-	OPE_SET_SRUT_OFFSET(ope,offset);
-	OPE_SET_OP(ope,OPERATION_MEMBER_ACCESS);
-	return (object_t *)ope;
-  }
+  ope = create_operator(TYPE_STRUCT,size);
+  OPE_SET_SRUT_OFFSET(ope,offset);
+  OPE_SET_OP(ope,OPERATION_MEMBER_ACCESS);
+
+  return (object_t *)ope;
 }
 
-static list_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,list_t *mem){
+static object_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,list_t *mem){
 
-  list_t *val;
+  object_t *obj;
   compound_def_t *com;
   symbol_t *sym;
   symbol_t *sym_mem;
@@ -3952,34 +3896,21 @@ static list_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,li
   printf("gen_static_struct_assign\n");
 #endif
 
-  val = make_null();
+  obj = NULL;
   sym = car(lst);
   com = get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
   if(IS_ASSIGN(gi)){
-	if(IS_LIST(mem)){
-
-	} else {
-	  sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(mem));
-	  val = cons(make_null(),sym_mem);
-	  val = add_symbol(val,car(car(cdr(lst))));
-	  val = cons(val,sym);
-	  val = add_symbol(val,STATIC);
-	}
+	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(mem));
   } else {
-	if(IS_LIST(mem)){
-
-	} else {
-	  name = car(cdr(lst));
-	  sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(mem));
-	  size = SYMBOL_GET_SIZE(sym_mem);
-	  op = select_inst(size);
-	  reg = select_reg(size);
-	  EMIT(gi,"%s %d+%s(#rip),#%s",op,size,name,reg);
-	  val = add_number(val,size);
-	}
+	name = car(cdr(lst));
+	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(mem));
+	size = SYMBOL_GET_SIZE(sym_mem);
+	op = select_inst(size);
+	reg = select_reg(size);
+	EMIT(gi,"%s %d+%s(#rip),#%s",op,size,name,reg);
   }
 
-  return val;
+  return obj;
 }
 
 static object_t *gen_struct_ref(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
@@ -4034,15 +3965,11 @@ static object_t *gen_struct_ref(gen_info_t *gi,env_t *env,env_t *cenv,list_t *ls
 	EMIT(gi,"%s %d(#rcx),#%s",select_inst(size),m_offset,select_reg(size));
   }
 
-  l = gen_load_unary_ref(gi,cdr(cdr(lst)));
-  if(l){
-	return l;
-  } else {
-	ope = create_operator(TYPE_STRUCT,size);
-	OPE_SET_SRUT_OFFSET(ope,m_offset);
-	OPE_SET_OP(ope,OPERATION_MEMBER_ACCESS);
-	return (object_t *)ope;
-  }
+  ope = create_operator(TYPE_STRUCT,size);
+  OPE_SET_SRUT_OFFSET(ope,m_offset);
+  OPE_SET_OP(ope,OPERATION_MEMBER_REFERENCE);
+
+  return (object_t *)ope;
 }
 
 static object_t *gen_for(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
@@ -4368,8 +4295,7 @@ static object_t *gen_increment_assign(gen_info_t *gi,env_t *env,env_t *cenv,list
 static object_t *gen_cast(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   object_t *obj;
-  list_t *name;
-  symbol_t *symbol;
+  operator_t *ope;
   type_t src_type;
   type_t cast_type;
   list_type_t type;
@@ -4381,27 +4307,31 @@ static object_t *gen_cast(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   obj = NULL;
   cast_type = conv_type(env,cenv,car(lst),make_null());
-  //name = gen_operand(gi,env,cenv,cdr(lst));
-
-  type = LIST_GET_TYPE(name);
-  switch(type){
-  case INTEGER:
-	src_type = TYPE_INT;
+  obj = gen_operand(gi,env,cenv,cdr(lst));
+  switch(OBJ_GET_TYPE(obj)){
+  case TYPE_SYMBOL:
+	src_type = gen_symbol_cast((symbol_t *)obj);
 	break;
-  case DECIMAL:
-	src_type = TYPE_DOUBLE;
-	break;
-  case SYMBOL:
-	symbol = lookup_obj(env,car(name));
-	if(!symbol){
-	  exit(1);
-	}
-	src_type = SYMBOL_GET_TYPE(symbol);
+  case TYPE_VALUE:
+	src_type = gen_value_cast((value_t *)obj);
 	break;
   default:
 	exit(1);
-	break;
   }
+
+  size = gen_select_cast_type(gi,src_type,cast_type);
+  ope = create_operator(cast_type,size);
+
+  return (object_t *)ope;
+}
+
+static integer_t gen_select_cast_type(gen_info_t *gi,type_t src_type,type_t cast_type){
+
+  integer_t size;
+
+#ifdef __DEBUG__
+  printf("gen_select_cast_type\n");
+#endif
 
   switch(cast_type){
   case TYPE_INT:
@@ -4424,10 +4354,19 @@ static object_t *gen_cast(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 	size = SIZE;
 	break;
   default:
+	exit(1);
     break;
   }
 
-  return obj;
+  return size;
+}
+
+static type_t gen_symbol_cast(symbol_t *sym){
+  return SYMBOL_GET_TYPE(sym);
+}
+
+static type_t gen_value_cast(value_t *value){
+  return VALUE_GET_TYPE(value);
 }
 
 static object_t *gen_ternary(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
@@ -4678,6 +4617,9 @@ static void gen_cast_char(gen_info_t *gi,type_t src_type){
 #endif
 
   switch(src_type){
+  case TYPE_LONG:
+	EMIT(gi,"movsqb #rax,#al");
+	break;
   case TYPE_INT:
 	EMIT(gi,"movslb #eax,#al");
 	break;
