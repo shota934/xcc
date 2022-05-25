@@ -242,7 +242,6 @@ static list_t *gen_cases_stmt(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst)
 static object_t *gen_break(gen_info_t *gi,env_t *env,list_t *lst);
 static object_t *gen_struct_dot(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static void gen_struct_load(gen_info_t *gi,symbol_t *sym,int size,int offset);
-static object_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,list_t *mem);
 static object_t *gen_continue(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_increment(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_increment_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -635,7 +634,11 @@ static void gen_info_add_static_var_list(gen_info_t *gi,symbol_t *sym,list_t *rh
 
   list_t *lst;
 
-  lst = cons(make_null(),rhs);
+  if(IS_NULL_LIST(rhs)){
+	lst = make_null();
+  } else {
+	lst = cons(make_null(),rhs);
+  }
   lst = cons(lst,sym);
   gi->lst_of_sv = concat(gi->lst_of_sv,add_list(make_null(),lst));
 
@@ -1358,10 +1361,15 @@ static void gen_static_var(gen_info_t *gi,env_t *env){
 	q = car(p);
 	sym = car(q);
 	name = SYMBOL_GET_STATIC_VAR(sym);
-	EMIT(gi,".data\t%d",0);
-	EMIT_NO_INDENT(gi,"%s:",name);
-	val = eval(env,car(cdr(q)));
-	gen_static_or_global_value(gi,val,sym);
+	if(length_of_list(q) == 2){
+	  EMIT(gi,".data\t%d",0);
+	  EMIT_NO_INDENT(gi,"%s:",name);
+	  val = eval(env,car(cdr(q)));
+	  gen_static_or_global_value(gi,val,sym);
+	} else {
+	  EMIT(gi,".local\t%s",name);
+	  EMIT(gi,".comm\t%s,%d, %d",name,SYMBOL_GET_SIZE(sym),SYMBOL_GET_SIZE(sym));
+	}
   }
 
   return;
@@ -1514,6 +1522,9 @@ static object_t *gen_decl_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst)
 	obj = (object_t *)sym;
 	operator_set_target_obj(ope,obj);
 	obj = (object_t *)ope;
+	if(!IS_ASSIGN(gi)){
+	  gen_info_add_static_var_list(gi,sym,make_null());
+	}
   } else {
 	sym = factory_symbol(gi,env,cenv,cdr(lst),LOCAL,name);
 	obj = (object_t *)sym;
@@ -1727,12 +1738,25 @@ static void gen_assign_struct_inst(gen_info_t *gi,operator_t *ope){
   sym = (symbol_t *)operator_get_target_obj(ope);
   switch(SYMBOL_GET_SCOPE(sym)){
   case LOCAL:
+  case ARGMENT:
+  case MEMBER:
+  case ARGMENT_ON_STACK:
 	switch(OPE_GET_OP(ope)){
 	case OPERATION_MEMBER_ACCESS:
 	  EMIT(gi,"%s #%s,%d(#rbp)",inst,reg,OPE_GET_SRUT_OFFSET(ope));
 	  break;
 	case OPERATION_MEMBER_REFERENCE:
 	  EMIT(gi,"%s #%s,%d(#rcx)",inst,reg,OPE_GET_SRUT_OFFSET(ope));
+	  break;
+	}
+	break;
+  case STATIC_LOCAL:
+  case STATIC_GLOBAL:
+	switch(OPE_GET_OP(ope)){
+	case OPERATION_MEMBER_ACCESS:
+	  EMIT(gi,"%s #%s,%d+%s(#rip)",inst,reg,OPE_GET_SRUT_OFFSET(ope),SYMBOL_GET_STATIC_VAR(sym));
+	  break;
+	case OPERATION_MEMBER_REFERENCE:
 	  break;
 	}
 	break;
@@ -1772,14 +1796,29 @@ static void gen_assign_static_and_global_inst(gen_info_t *gi,symbol_t *sym){
 	break;
   }
 
-  if(is_float(tail(SYMBOL_GET_TYPE_LST(sym)))){
-	inst = select_inst_fp(size);
-	reg = "xmm8";
-	EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
-  } else {
+  switch(SYMBOL_GET_TYPE(sym)){
+  case TYPE_INT:
+  case TYPE_CHAR:
+  case TYPE_SHORT:
+  case TYPE_LONG:
+  case TYPE_ENUM:
+  case TYPE_UNDEFINE:
+  case TYPE_SIGNED:
+  case TYPE_POINTER:
 	inst = select_inst(size);
 	reg = select_reg(size);
 	EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
+	break;
+  case TYPE_FLOAT:
+  case TYPE_DOUBLE:
+	inst = select_inst_fp(size);
+	reg = "xmm8";
+	EMIT(gi,"%s #%s,%s(#rip)",inst,reg,name);
+	break;
+  case TYPE_STRUCT:
+	break;
+  default:
+	break;
   }
 
   return;
@@ -3273,15 +3312,11 @@ static object_t *gen_load_static_inst(gen_info_t *gi,symbol_t *sym){
   case TYPE_LONG:
 	inst = select_inst(size);
 	reg = select_reg(size);
+	EMIT(gi,"%s %s(#rip),#%s",inst,name,reg);
 	break;
   default:
 	break;
   }
-  if(!(inst && reg)){
-	exit(1);
-	return NULL;
-  }
-  EMIT(gi,"%s %s(#rip),#%s",inst,name,reg);
   
   return (object_t *)sym;
 }
@@ -3930,43 +3965,15 @@ static void gen_struct_load(gen_info_t *gi,symbol_t *sym,int size,int offset){
   case GLOBAL:
 	EMIT(gi,"%s %d+%s(#rip),#%s",inst,offset,SYMBOL_GET_NAME(sym),reg);
 	break;
+  case STATIC_GLOBAL:
+  case STATIC_LOCAL:
+	EMIT(gi,"%s %d+%s(#rip),#%s",inst,offset,SYMBOL_GET_STATIC_VAR(sym),reg);
+	break;
   default:
 	break;
   }
 
   return;
-}
-
-static object_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,list_t *mem){
-
-  object_t *obj;
-  compound_def_t *com;
-  symbol_t *sym;
-  symbol_t *sym_mem;
-  string_t op;
-  string_t reg;
-  integer_t size;
-  string_t name;
-
-#ifdef __DEBUG__
-  printf("gen_static_struct_assign\n");
-#endif
-
-  obj = NULL;
-  sym = car(lst);
-  com = get_comp_obj(env,cenv,car(tail(SYMBOL_GET_TYPE_LST(sym))));
-  if(IS_ASSIGN(gi)){
-	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(mem));
-  } else {
-	name = car(cdr(lst));
-	sym_mem = lookup_member(COMPOUND_TYPE_GET_ENV(com),car(mem));
-	size = SYMBOL_GET_SIZE(sym_mem);
-	op = select_inst(size);
-	reg = select_reg(size);
-	EMIT(gi,"%s %d+%s(#rip),#%s",op,size,name,reg);
-  }
-
-  return obj;
 }
 
 static object_t *gen_struct_ref(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
