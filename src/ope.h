@@ -10,9 +10,6 @@
 #define OPE_SET_OP(ope,op1) ope->op = op1
 #define OPE_GET_OP(ope) ope->op
 
-#define OPE_SET_TARGET(ope,obj) ope->target.obj = obj
-#define OPE_GET_TARGET(ope) ope->target.obj
-
 struct operator_t {
   object_t obj;
   type_t type;
@@ -23,11 +20,11 @@ struct operator_t {
 	int offset;
   }srut;
 
-  struct {
-	object_t *obj;
-  } target;
+  object_t *target_obj;
 };
 
 operator_t *create_operator(type_t type,int size);
+void operator_set_target_obj(operator_t *ope,object_t *obj);
+object_t *operator_get_target_obj(operator_t *ope);
 
 #endif

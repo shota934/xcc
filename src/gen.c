@@ -152,6 +152,7 @@ static object_t *gen_block(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_complex_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,bool_t flg,symbol_t *sym);
 static object_t *gen_complex_global_or_static_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,bool_t flg,symbol_t *sym);
 static void gen_assign_inst(gen_info_t *gi,object_t *obj);
+static void gen_assign_struct_inst(gen_info_t *gi,operator_t *ope);
 static void gen_assign_static_and_global_inst(gen_info_t *gi,symbol_t *sym);
 static list_t *gen_assign_static_struct_inst(gen_info_t *gi,list_t *lst);
 static list_t *gen_symbol_var(gen_info_t *gi,env_t *env,env_t *cenv,symbol_t *sym,list_t *lst);
@@ -239,7 +240,8 @@ static list_t *gen_case(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_default(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static list_t *gen_cases_stmt(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_break(gen_info_t *gi,env_t *env,list_t *lst);
-static object_t *gen_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
+static object_t *gen_struct_dot(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
+static void gen_struct_load(gen_info_t *gi,symbol_t *sym,int size,int offset);
 static object_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,list_t *mem);
 static object_t *gen_continue(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
 static object_t *gen_increment(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst);
@@ -1344,8 +1346,8 @@ static void gen_static_var(gen_info_t *gi,env_t *env){
   list_t *q;
   list_t *val;
   symbol_t *sym;
-  int size;
   string_t name;
+  int size;
 
 #ifdef __DEBUG__
   printf("gen_static_var\n");
@@ -1425,7 +1427,7 @@ static object_t *gen_symbol(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   } else if(STRCMP(BREAK,symbol)){
 	obj = gen_break(gi,env,lst);
   } else if(STRCMP(DOT,symbol)){
-	obj = gen_struct_assign(gi,env,cenv,cdr(lst));
+	obj = gen_struct_dot(gi,env,cenv,cdr(lst));
   }else if(STRCMP(REF_MEMBER_ACCESS,symbol)){
 	obj = gen_struct_ref(gi,env,cenv,cdr(lst));
   } else if(STRCMP(SIZEOF,symbol)){
@@ -1510,7 +1512,7 @@ static object_t *gen_decl_var(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst)
 	new_name = concat_strs(gi->func_name,name);
 	SYMBOL_SET_STATIC_VAR(sym,new_name);
 	obj = (object_t *)sym;
-	OPE_SET_TARGET(ope,obj);
+	operator_set_target_obj(ope,obj);
 	obj = (object_t *)ope;
   } else {
 	sym = factory_symbol(gi,env,cenv,cdr(lst),LOCAL,name);
@@ -1579,7 +1581,7 @@ static object_t *gen_lhs(gen_info_t *gi,object_t *lhs,list_t *lst){
 	case TYPE_STATIC:
 	  switch(OPE_GET_OP(ope)){
 	  case OPERATION_DEFINISION:
-		sym = (symbol_t *)OPE_GET_TARGET(ope);
+		sym = (symbol_t *)operator_get_target_obj(ope);
 		gen_info_add_static_var_list(gi,sym,car(cdr(lst)));
 		break;
 	  }
@@ -1690,20 +1692,7 @@ static void gen_assign_inst(gen_info_t *gi,object_t *obj){
 	  EMIT(gi,"%s #%s,(%rcx)",inst,reg);
 	  break;
 	case TYPE_STRUCT:
-	  op = OPE_GET_OP(ope);
-	  inst = select_inst(OPE_GET_SIZE(ope));
-	  reg = select_reg(OPE_GET_SIZE(ope));
-	  switch(OPE_GET_OP(ope)){
-	  case OPERATION_MEMBER_ACCESS:
-		EMIT(gi,"%s #%s,%d(#rbp)",inst,reg,OPE_GET_SRUT_OFFSET(ope));
-		break;
-	  case OPERATION_MEMBER_REFERENCE:
-		EMIT(gi,"%s #%s,%d(#rcx)",inst,reg,OPE_GET_SRUT_OFFSET(ope));
-		break;
-	  default:
-		break;
-	  }
-	default:
+	  gen_assign_struct_inst(gi,ope);
 	  break;
 	}
 	break;
@@ -1718,6 +1707,44 @@ static void gen_assign_inst(gen_info_t *gi,object_t *obj){
 	  EMIT(gi,"%s #%s,%d(#rbp)",inst,reg,SYMBOL_GET_OFFSET(sym));
 	  break;
 	}
+  }
+
+  return;
+}
+
+static void gen_assign_struct_inst(gen_info_t *gi,operator_t *ope){
+
+  symbol_t *sym;
+  string_t inst;
+  string_t reg;
+
+#ifdef __DEBUG__
+  printf("gen_assign_struct_inst");
+#endif
+
+  inst = select_inst(OPE_GET_SIZE(ope));
+  reg = select_reg(OPE_GET_SIZE(ope));
+  sym = (symbol_t *)operator_get_target_obj(ope);
+  switch(SYMBOL_GET_SCOPE(sym)){
+  case LOCAL:
+	switch(OPE_GET_OP(ope)){
+	case OPERATION_MEMBER_ACCESS:
+	  EMIT(gi,"%s #%s,%d(#rbp)",inst,reg,OPE_GET_SRUT_OFFSET(ope));
+	  break;
+	case OPERATION_MEMBER_REFERENCE:
+	  EMIT(gi,"%s #%s,%d(#rcx)",inst,reg,OPE_GET_SRUT_OFFSET(ope));
+	  break;
+	}
+	break;
+  case GLOBAL:
+	switch(OPE_GET_OP(ope)){
+	case OPERATION_MEMBER_ACCESS:
+	  EMIT(gi,"%s #%s,%d+%s(#rip)",inst,reg,OPE_GET_SRUT_OFFSET(ope),SYMBOL_GET_NAME(sym));
+	  break;
+	case OPERATION_MEMBER_REFERENCE:
+	  break;
+	}
+	break;
   }
 
   return;
@@ -3829,7 +3856,7 @@ static object_t *gen_while(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
   return NULL;
 }
 
-static object_t *gen_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
+static object_t *gen_struct_dot(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst){
 
   symbol_t *sym;
   symbol_t *sym_mem;
@@ -3846,7 +3873,7 @@ static object_t *gen_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t 
   operator_t *ope_mem;
 
 #ifdef __DEBUG__
-  printf("gen_struct_assign\n");
+  printf("gen_struct_dot\n");
 #endif
 
   sym = (symbol_t *)gen_operand(gi,env,cenv,car(lst));
@@ -3871,14 +3898,43 @@ static object_t *gen_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t 
   offset = SYMBOL_GET_OFFSET(sym) + m_offset;
 
   if(!IS_ASSIGN(gi)){
-	EMIT(gi,"movq %d(#rbp),#rax",offset);
+	gen_struct_load(gi,sym,size,offset);
   }
 
   ope = create_operator(TYPE_STRUCT,size);
   OPE_SET_SRUT_OFFSET(ope,offset);
   OPE_SET_OP(ope,OPERATION_MEMBER_ACCESS);
+  operator_set_target_obj(ope,(object_t *)sym);
 
   return (object_t *)ope;
+}
+
+static void gen_struct_load(gen_info_t *gi,symbol_t *sym,int size,int offset){
+
+  string_t inst;
+  string_t reg;
+
+#ifdef __DEBUG__
+  printf("gen_struct_load\n");
+#endif
+
+  inst = select_inst(size);
+  reg = select_reg(size);
+  switch(SYMBOL_GET_SCOPE(sym)){
+  case ARGMENT:
+  case ARGMENT_ON_STACK:
+  case LOCAL:
+  case MEMBER:
+	EMIT(gi,"%s %d(#rbp),#%s",inst,offset,reg);
+	break;
+  case GLOBAL:
+	EMIT(gi,"%s %d+%s(#rip),#%s",inst,offset,SYMBOL_GET_NAME(sym),reg);
+	break;
+  default:
+	break;
+  }
+
+  return;
 }
 
 static object_t *gen_static_struct_assign(gen_info_t *gi,env_t *env,env_t *cenv,list_t *lst,list_t *mem){
@@ -3968,6 +4024,7 @@ static object_t *gen_struct_ref(gen_info_t *gi,env_t *env,env_t *cenv,list_t *ls
   ope = create_operator(TYPE_STRUCT,size);
   OPE_SET_SRUT_OFFSET(ope,m_offset);
   OPE_SET_OP(ope,OPERATION_MEMBER_REFERENCE);
+  operator_set_target_obj(ope,(object_t *)sym);
 
   return (object_t *)ope;
 }
