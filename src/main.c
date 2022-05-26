@@ -179,7 +179,6 @@ static void parse_opt(opt_info_t *optinfo,int argc,char *argv[]){
   printf("show_help\n");
 #endif
   
-  opt = 0;
   while((opt = getopt(argc,argv,"dhvcSoE:")) != -1){
     switch(opt){
     case 'v':
@@ -218,7 +217,6 @@ static list_t *parse_src(compile_info_t *com,parser_t *parser){
   printf("parse_src\n");
 #endif
 
-  ast = make_null();
   p = COM_GET_SRC_INFO_LST(com);
   
   srcinfo = car(p);
@@ -247,9 +245,7 @@ static file_t *create_outfile(char *name){
 
   file_t *file;
   char *output_name;
-  int len;
 
-  len = (int)STRLEN(name);
   file = file_create();
   FILE_SET_NAME(file,name);
   FILE_SET_MODE(file,FILE_WRITE_MODE);
