@@ -179,7 +179,7 @@ static list_t *parser_parse_term(parser_t *parser);
 static list_t *parser_parse_factor(parser_t *parser);
 static list_t *parser_parse_if(parser_t *parser);
 static list_t *parser_parse_goto(parser_t *parser);
-static list_t *parser_baracket_expr(parser_t *parser);
+static list_t *parser_bracket_expr(parser_t *parser);
 static list_t *parser_parse_else(parser_t *parser);
 static list_t *parser_parse_sub(parser_t *parser,list_t *lst);
 static list_t *parser_parse_sub_op(parser_t *parser,list_t *lst);
@@ -835,7 +835,7 @@ static list_t *parser_parse_attribute(parser_t *parser,list_t *lst){
 #ifdef __DEBUG__
   printf("parser_parse_attribute\n");
 #endif
-  //printf("parser_parse_attribute\n");  
+
   flag = FALSE;
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(IS_LBRACE(t)){
@@ -1339,7 +1339,7 @@ static list_t *parser_parse_factor(parser_t *parser){
 	  new_lst = add_list(make_null(),new_lst);
 	}
   } else if(IS_LPAREN(t)){
-    new_lst = parser_baracket_expr(parser);
+    new_lst = parser_bracket_expr(parser);
   } else if(IS_ASTERISK(t)){
 	while(IS_ASTERISK(t)){
 	  new_lst = concat(new_lst,make_symbol(make_null(),t));
@@ -1404,12 +1404,12 @@ static list_t *parser_parse_factor(parser_t *parser){
   return new_lst;
 }
 
-static list_t *parser_baracket_expr(parser_t *parser){
+static list_t *parser_bracket_expr(parser_t *parser){
 
   list_t *new_lst;
   token_t *t;
 #ifdef __DEBUG__
-  printf("parser_baracket_expr\n");
+  printf("parser_bracket_expr\n");
 #endif
   new_lst = parser_parse_type(parser,FALSE,TRUE);
   if(IS_NULL_LIST(new_lst)){
@@ -1423,12 +1423,13 @@ static list_t *parser_baracket_expr(parser_t *parser){
 	  t = lexer_get_token(PARSER_GET_LEX(parser));
 	}
   } else {
-    new_lst = add_list(make_null(),reverse(new_lst));
+	new_lst = concat(new_lst,parser_parse_dcl(parser));
     t = lexer_get_token(PARSER_GET_LEX(parser));
-    if(!IS_RPAREN(t)){
+	if(!IS_RPAREN(t)){
+	  error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n",")",TOKEN_GET_STR(t));
       exit(1);
     }
-
+	new_lst = add_list(make_null(),reverse(new_lst));
 	new_lst = parser_parse_cast(parser,new_lst);
   }
     
@@ -1446,7 +1447,8 @@ static list_t *parser_parse_if(parser_t *parser){
 #endif
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_LPAREN(t)){
-    
+	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n","(",TOKEN_GET_STR(t));
+	exit(1);
   }
 
   new_lst = parser_parse_bexpr(parser);
@@ -1456,7 +1458,8 @@ static list_t *parser_parse_if(parser_t *parser){
 
   t = lexer_get_token(PARSER_GET_LEX(parser));
   if(!IS_RPAREN(t)){
-    
+	error(TOKEN_GET_LINE_NO(t),TOKEN_GET_NAME(t),"Expected : [%s] but got [%s]\n",")",TOKEN_GET_STR(t));
+	exit(1);
   }
 
   t = lexer_get_token(PARSER_GET_LEX(parser));
