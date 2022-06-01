@@ -9,6 +9,7 @@
 #define FUNC_GET_NO_VAR_ARG(f) f->no_var_args
 #define FUNC_IS_HAVING_VAR_ARG(f) f->has_var_args
 #define FUNC_GET_NUM_OF_ARGS(f)   f->num_of_args;
+#define FUNC_GET_NAME(f)          f->name
 
 struct func_t {
   object_t obj;
@@ -17,8 +18,9 @@ struct func_t {
   list_t *ret_type;
   bool_t has_var_args;
   int num_of_args;
+  string_t name;
 };
 
-func_t *create_func(list_t *args,list_t *ret_type,scope_t scope);
+func_t *create_func(list_t *args,list_t *ret_type,scope_t scope,string_t name);
 
 #endif

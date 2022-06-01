@@ -42,11 +42,6 @@ struct gen_info_t {
   string_t func_name;
   list_t *lst_of_sv;
   list_t *args;
-<<<<<<< HEAD
-  bool_t flag_of_global_assign;
-=======
-  env_t *env;
->>>>>>> develop
 };
 
 gen_info_t *create_gen_info();

@@ -16,3 +16,14 @@ operator_t *create_operator(type_t type,int size){
 
   return ope;
 }
+
+void operator_set_target_obj(operator_t *ope,object_t *obj){
+
+  ope->target_obj = obj;
+
+  return;
+}
+
+object_t *operator_get_target_obj(operator_t *ope){
+  return ope->target_obj;
+}

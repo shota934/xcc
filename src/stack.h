@@ -13,11 +13,11 @@ struct stack_ty {
 };
 
 stack_ty *create_stack();
-void push(stack_ty *stack,void *obj);
-void *pop(stack_ty *stack);
-void *top(stack_ty *stack);
-int empty(stack_ty *stack);
-int get_size(stack_ty *stack);
+void stack_push(stack_ty *stack,void *obj);
+void *stack_pop(stack_ty *stack);
+void *stack_top(stack_ty *stack);
+int stack_empty(stack_ty *stack);
+int stack_get_size(stack_ty *stack);
 
 #endif
 
