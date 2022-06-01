@@ -17,7 +17,7 @@ stack_ty *create_stack(){
   return stack;
 }
 
-void push(stack_ty *stack,void *obj){
+void stack_push(stack_ty *stack,void *obj){
 
   stack->lst = cons(stack->lst,obj);
   stack->size++;
@@ -25,7 +25,7 @@ void push(stack_ty *stack,void *obj){
   return;
 }
 
-void *pop(stack_ty *stack){
+void *stack_pop(stack_ty *stack){
 
   void *obj;
   if(IS_NULL_LIST(stack->lst)){
@@ -39,7 +39,7 @@ void *pop(stack_ty *stack){
   return obj;
 }
 
-void *top(stack_ty *stack){
+void *stack_top(stack_ty *stack){
 
   void *obj;
 

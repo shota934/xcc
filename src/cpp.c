@@ -130,7 +130,7 @@ void cpreprocess(compile_info_t *com,lexer_t *lexer,source_info_t *srcinfo){
   printf("cpreprocess\n");
 #endif
 
-  push(COM_GET_STACK(com),srcinfo);
+  stack_push(COM_GET_STACK(com),srcinfo);
   add_src_info_lst(com,srcinfo);
   cprereaddefs(com,lexer,FALSE,TRUE);
 
@@ -144,7 +144,7 @@ void cpreprocess(compile_info_t *com,lexer_t *lexer,source_info_t *srcinfo){
   save_lexinfo(srcinfo,lexer);
   com->token_lst = concat(com->token_lst,SOURCE_INFO_GET_LST(srcinfo));
 
-  pop(COM_GET_STACK(com));
+  stack_pop(COM_GET_STACK(com));
 
   ASSERT(empty(COM_GET_STACK(com)));
 
@@ -387,14 +387,14 @@ static void read_next_include(compile_info_t *com,lexer_t *lexer,source_info_t *
   add_src_info_lst(com,srcinfo);
   stack = COM_GET_STACK(com);
   
-  cur_srcinfo = top(stack);
+  cur_srcinfo = stack_top(stack);
   save_lexinfo(cur_srcinfo,lexer);
   com->token_lst = concat(com->token_lst,SOURCE_INFO_GET_LST(cur_srcinfo));
 
 
   src_info_init_lst(cur_srcinfo);
 
-  push(stack,srcinfo);
+  stack_push(stack,srcinfo);
 
   load_lexinfo(srcinfo,lexer);
   file = SOURCE_INFO_GET_FILE(srcinfo);
@@ -404,7 +404,7 @@ static void read_next_include(compile_info_t *com,lexer_t *lexer,source_info_t *
   save_lexinfo(srcinfo,lexer);
   com->token_lst = concat(com->token_lst,SOURCE_INFO_GET_LST(srcinfo));
 
-  pop(stack);
+  stack_pop(stack);
   load_lexinfo(cur_srcinfo,lexer);
 
   return;
