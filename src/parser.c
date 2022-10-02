@@ -127,7 +127,9 @@
 
 
 #define IS_QUESTION(t)   (TOKEN_GET_TYPE(t) == TOKEN_QUESTION)
-#define IS_ATTRIBUTE(t)  (TOKEN_GET_TYPE(t) == TOKEN_ATTRIBUTE)
+#define IS_ATTRIBUTE(t)  (TOKEN_GET_TYPE(t) == TOKEN_ATTRIBUTE) || \
+                         (TOKEN_GET_TYPE(t) ==  TOKEN_ATTRIBUTE_MALLOC) || \
+                         (TOKEN_GET_TYPE(t) ==  TOKEN_THROW)
 #define IS_DO(t)  (TOKEN_GET_TYPE(t) == TOKEN_DO)
 #define IS_ASM(t) (TOKEN_GET_TYPE(t) == TOKEN_ASM)
 

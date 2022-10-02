@@ -89,7 +89,7 @@ static void *car_obj(list_t *lst){
 	obj = &lst->obj.charc.ch;
 	break;
   default:
-    error_no_info("Unknonw list type %d\n",type);
+    error_no_info("Unknown list type %d\n",type);
     exit(1);
     break;
   }
