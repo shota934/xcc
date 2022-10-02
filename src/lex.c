@@ -115,6 +115,8 @@ token_t keywords[] = {
   {TOKEN_QUESTION,"?"},
   {TOKEN_INLINE,"inline"},
   {TOKEN_ATTRIBUTE,"__attribute__"},
+  {TOKEN_ATTRIBUTE_MALLOC,"__attribute_malloc__"},
+  {TOKEN_THROW,"__THROW"},
   {TOKEN_DO,"do"},
   {TOKEN_ASM,"asm"},
 };

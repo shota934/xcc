@@ -52,6 +52,9 @@
 #define IS_SPACE(t)       (TOKEN_GET_TYPE(t) == TOKEN_SPACE)
 #define IS_ERROR(t)       (TOKEN_GET_TYPE(t) == TOKEN_ERROR)
 #define IS_BACKSLASH(t)   (TOKEN_GET_TYPE(t) == TOKEN_BACK_SLASH)
+#define IS_ATTRIBUTE(t)  (TOKEN_GET_TYPE(t) == TOKEN_ATTRIBUTE)
+#define IS_ATTRIBUTE_MALLOC(t)  (TOKEN_GET_TYPE(t) == TOKEN_ATTRIBUTE_MALLOC)
+#define IS_THROW(t)      (TOKEN_GET_TYPE(t) == TOKEN_THROW)
 #define IS_MACRO_OBJ(m)  m->type == MACRO_OBJECT
 
 static void read_include(compile_info_t *com,lexer_t *lexer);
@@ -101,6 +104,7 @@ static list_t *create_token_seaquence(lexer_t *lexer);
 static bool_t is_terminate_symbol(token_t *t);
 static void skip_until_newline(lexer_t *lexer);
 static list_t *replace_macro(compile_info_t *com,list_t *lst);
+static bool_t is_skip(token_t *t);
 
 //
 //
@@ -242,7 +246,7 @@ static void cprereaddefs(compile_info_t *com,lexer_t *lexer,bool_t flag,bool_t p
 #endif
 
   while(TRUE){
-	t = scan(lexer);
+    t = scan(lexer);
     if(IS_SHAPE(t)){
       cprereaddef(com,lexer,flag,predic);
 	} else {
@@ -419,7 +423,7 @@ static void read_define(compile_info_t *com,lexer_t *lexer){
   token_t *t;
   name = scan(lexer);
 
-  if(!IS_LETTER(name)){
+  if(is_skip(name)){
     error(TOKEN_GET_LINE_NO(name),TOKEN_GET_NAME(name),"Definition error [%s]",TOKEN_GET_STR(name));
   }
 
@@ -1317,6 +1321,22 @@ static list_t *replace_macro(compile_info_t *com,list_t *lst){
     p = cdr(p);
   }
   return q;
+}
+
+static bool_t is_skip(token_t *t){
+
+#ifdef __DEBUG__
+  printf("is_skip\n");
+#endif
+
+  if(!IS_LETTER(t) &&
+     !IS_ATTRIBUTE(t) &&
+     !IS_ATTRIBUTE_MALLOC(t) &&
+     !IS_THROW(t)){
+    return TRUE;
+  }
+
+  return FALSE;
 }
 
 //
